@@ -1,7 +1,7 @@
-use anyhow::Result;
+mod server;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     log4rs::init_file("config/log4rs.yaml", Default::default())?;
-    log::info!("server starting...");
-    Ok(())
+    server::start().await
 }
