@@ -4,6 +4,7 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
+use clap::Parser;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, oneshot};
@@ -86,16 +87,10 @@ impl Server {
                     match line_result? {
                         Some(line) => {
                             log::debug!("[client {}] sent message: {}", addr, line);
-                            if line.trim().eq_ignore_ascii_case("quit") {
-                                let command = kvstore::Command::Quit;
-                                let (sender, _) = oneshot::channel();
-                                self.event_tx.send(kvstore::Event {
-                                    reply_channel: sender,
-                                    command
-                                })?;
-                                continue;
-                            }
-                            writer.write_all(line.as_bytes()).await?;
+                            match self.handle_client_request(&line).await {
+                                Ok(reply) => writer.write_all(reply.as_bytes()).await?,
+                                Err(err) => writer.write_all(err.to_string().as_bytes()).await?,
+                            };
                             writer.write_all(b"\n").await?;
                         }
                         None => {
@@ -111,6 +106,19 @@ impl Server {
             }
         }
         Ok(())
+    }
+
+    async fn handle_client_request(&self, line: &str) -> Result<String> {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        let command = kvstore::Commands::try_parse_from(parts)?;
+        let (sender, receiver) = oneshot::channel();
+
+        self.event_tx.send(kvstore::Event {
+            reply_channel: sender,
+            command,
+        })?;
+
+        timeout(Duration::from_millis(500), receiver).await??
     }
 
     async fn wait_for_connections_to_close(&self) {

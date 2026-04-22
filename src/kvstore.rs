@@ -1,15 +1,23 @@
 use anyhow::Result;
+use clap::Parser;
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
-#[derive(Debug)]
-pub enum Command {
+#[derive(Debug, Parser)]
+#[command(no_binary_name = true)]
+pub enum Commands {
     Quit,
+
+    Echo {
+        message: String,
+        #[arg(short, long, default_value_t = 1)]
+        times: u8,
+    },
 }
 
 #[derive(Debug)]
 pub struct Event {
-    pub command: Command,
+    pub command: Commands,
     pub reply_channel: oneshot::Sender<Result<String>>,
 }
 
@@ -48,10 +56,11 @@ impl KVStore {
     fn handle_event(&self, event: Event) {
         log::debug!("handling event {:?}", event.command);
         let reply = match event.command {
-            Command::Quit => {
+            Commands::Quit => {
                 self.cancellation_token.cancel();
                 String::new()
             }
+            Commands::Echo { message, times } => message.repeat(times as usize),
         };
         if event.reply_channel.send(Ok(reply)).is_err() {
             log::error!("couldn't reply to the event!");
