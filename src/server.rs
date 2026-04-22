@@ -1,11 +1,13 @@
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
+use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
+use tokio::time::{sleep, timeout};
 use tokio_util::sync::CancellationToken;
 
 const DEFAULT_SERVER_SOCKET: &str = "127.0.0.1:55123";
@@ -50,8 +52,18 @@ impl Server {
                 }
             }
         }
-        log::info!("server shutting down");
-        Ok(())
+        if self.active_connections.load(Ordering::SeqCst) == 0 {
+            log::info!("server shutting down, no clients connected");
+            return Ok(());
+        }
+
+        log::info!("server shutting down, waiting for connections to close");
+        timeout(
+            Duration::from_millis(500),
+            self.wait_for_connections_to_close(),
+        )
+        .await
+        .context("a timeout occurred while waiting for connections to close")
     }
     async fn handle_connection(self: Arc<Self>, connection: (TcpStream, SocketAddr)) {
         let (stream, addr) = connection;
@@ -71,18 +83,38 @@ impl Server {
         let bufreader = BufReader::new(reader);
         let mut lines = bufreader.lines();
 
-        while let Some(line) = lines.next_line().await? {
-            log::debug!("[client {}] received message: {}", addr, line);
-            if line.trim().eq_ignore_ascii_case("quit") {
-                self.event_tx.send(Event::Quit)?;
-                writer.write_all(b"goodbye!\n").await?;
-                return Ok(());
+        loop {
+            tokio::select! {
+                line_result = lines.next_line() => {
+                    match line_result? {
+                        Some(line) => {
+                            log::debug!("[client {}] sent message: {}", addr, line);
+                            if line.trim().eq_ignore_ascii_case("quit") {
+                                self.event_tx.send(Event::Quit)?;
+                                continue;
+                            }
+                            writer.write_all(line.as_bytes()).await?;
+                            writer.write_all(b"\n").await?;
+                        }
+                        None => {
+                            log::info!("[client {}] disconnected", addr);
+                        }
+                    }
+                }
+                _ = self.cancellation_token.cancelled() => {
+                    log::info!("[client {}] closing connection", addr);
+                    writer.write_all(b"server shutting down, closing connection\n").await?;
+                    break;
+                }
             }
-            writer.write_all(line.as_bytes()).await?;
-            writer.write_all(b"\n").await?;
         }
-        log::info!("[client {}] disconnected", addr);
         Ok(())
+    }
+
+    async fn wait_for_connections_to_close(&self) {
+        while self.active_connections.load(Ordering::SeqCst) != 0 {
+            sleep(Duration::from_millis(50)).await;
+        }
     }
 }
 
