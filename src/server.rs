@@ -6,26 +6,23 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio::time::{sleep, timeout};
 use tokio_util::sync::CancellationToken;
 
+use crate::kvstore;
+
 const DEFAULT_SERVER_SOCKET: &str = "127.0.0.1:55123";
 
-#[derive(Debug)]
-pub enum Event {
-    Quit,
-}
-
 pub struct Server {
-    event_tx: mpsc::UnboundedSender<Event>,
+    event_tx: mpsc::UnboundedSender<kvstore::Event>,
     cancellation_token: CancellationToken,
     active_connections: Arc<AtomicU8>,
 }
 
 impl Server {
     pub fn new(
-        event_tx: mpsc::UnboundedSender<Event>,
+        event_tx: mpsc::UnboundedSender<kvstore::Event>,
         cancellation_token: CancellationToken,
     ) -> Arc<Self> {
         Arc::new(Server {
@@ -90,7 +87,12 @@ impl Server {
                         Some(line) => {
                             log::debug!("[client {}] sent message: {}", addr, line);
                             if line.trim().eq_ignore_ascii_case("quit") {
-                                self.event_tx.send(Event::Quit)?;
+                                let command = kvstore::Command::Quit;
+                                let (sender, _) = oneshot::channel();
+                                self.event_tx.send(kvstore::Event {
+                                    reply_channel: sender,
+                                    command
+                                })?;
                                 continue;
                             }
                             writer.write_all(line.as_bytes()).await?;
@@ -115,48 +117,5 @@ impl Server {
         while self.active_connections.load(Ordering::SeqCst) != 0 {
             sleep(Duration::from_millis(50)).await;
         }
-    }
-}
-
-pub async fn start() -> Result<()> {
-    let (event_tx, event_rx) = mpsc::unbounded_channel::<Event>();
-    let cancellation_token = CancellationToken::new();
-    let server = Server::new(event_tx.clone(), cancellation_token.clone());
-
-    let event_thread =
-        tokio::spawn(async move { run_event_loop(event_rx, cancellation_token).await });
-    let server_thread = tokio::spawn(async move { server.run().await });
-
-    let (server_res, event_res) = tokio::join!(server_thread, event_thread);
-    server_res??;
-    event_res??;
-    log::info!("all threads have finished");
-
-    Ok(())
-}
-
-async fn run_event_loop(
-    mut receiver: mpsc::UnboundedReceiver<Event>,
-    cancellation_token: CancellationToken,
-) -> Result<()> {
-    log::info!("running event loop");
-    loop {
-        tokio::select! {
-            Some(event) = receiver.recv() => {
-                handle_event(event, &cancellation_token).await;
-            }
-            _ = cancellation_token.cancelled() => {
-                    break;
-            }
-        }
-    }
-    log::info!("event loop has finished");
-    Ok(())
-}
-
-async fn handle_event(event: Event, cancellation_token: &CancellationToken) {
-    log::debug!("handling event: {:?}", event);
-    match event {
-        Event::Quit => cancellation_token.cancel(),
     }
 }
