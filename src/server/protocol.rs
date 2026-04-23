@@ -1,8 +1,10 @@
 use std::io::BufRead;
 
 use anyhow::{Context, Result, bail};
+
 #[derive(Debug, PartialEq)]
 pub enum RespDataType {
+    Array { data: Vec<RespDataType> },
     BulkString { data: String },
     Null,
 }
@@ -22,11 +24,30 @@ impl<R: BufRead> RespParser<R> {
             .read_exact(&mut buf)
             .context("couldn't read the RESP data type byte")?;
         match buf[0] as char {
+            '*' => self.parse_array(),
             '$' => self.parse_bulk_string(),
             other => {
                 bail!("unknown RESP data type indicator: {}", other);
             }
         }
+    }
+
+    fn parse_array(&mut self) -> Result<RespDataType> {
+        let element_count: usize = self
+            .read_line()
+            .context("couldn't read the element count line for the array")?
+            .parse()
+            .context("the character count line didn't contain a valid number")?;
+
+        let mut data = Vec::new();
+        while data.len() != element_count {
+            data.push(self.parse().context(format!(
+                "an error occurred while parsing the {}nth element of the array",
+                data.len() + 1
+            ))?);
+        }
+
+        Ok(RespDataType::Array { data })
     }
 
     fn parse_bulk_string(&mut self) -> Result<RespDataType> {
@@ -86,6 +107,16 @@ mod tests {
         parser
     }
 
+    fn make_array(content: &[&str]) -> RespDataType {
+        let mut data = Vec::new();
+        for string in content {
+            data.push(RespDataType::BulkString {
+                data: String::from(*string),
+            });
+        }
+        RespDataType::Array { data }
+    }
+
     fn run_test_case(test_case: TestCase) {
         let result = get_parser(&test_case.input).parse();
         match test_case.expected_result {
@@ -106,12 +137,16 @@ mod tests {
             "",
             "\r\n\r\n",
             "no type byte",
-            "$10\r\n",            // no string content
-            "$10\r\ntest\r\n",    // string too short
-            "$4\r\ntesttest\r\n", // string too long
-            "$\r\ntesttest\r\n",  // no string length
-            "$xx\r\ntest",        // invalid string length
-            "$-10\r\ntest",       // negative string length
+            "$10\r\n",                 // no string content
+            "$10\r\ntest\r\n",         // string too short
+            "$4\r\ntesttest\r\n",      // string too long
+            "$\r\ntesttest\r\n",       // no string length
+            "$xx\r\ntest",             // invalid string length
+            "$-10\r\ntest",            // negative string length
+            "*-10\r\n",                // negative array length
+            "*2\r\n$1\r\nt\r\n",       // not enough elements in array
+            "*1\r\n*2\r\n$1\r\nt\r\n", // not enough elements in subarray
+            "*1\r\n",                  // empty array
         ];
         for input in inputs {
             let test_case = TestCase {
@@ -138,6 +173,36 @@ mod tests {
                         data: String::from(expected),
                     },
                 },
+            };
+            run_test_case(test_case);
+        }
+    }
+
+    #[test]
+    fn test_array() {
+        let inputs = vec![
+            "*1\r\n$5\r\ntest1\r\n",
+            "*3\r\n$5\r\ntest1\r\n$5\r\ntest2\r\n$5\r\ntest3\r\n",
+            "*1\r\n*2\r\n$5\r\ntest1\r\n$5\r\ntest2\r\n",
+            "*2\r\n*3\r\n$6\r\ntest11\r\n$6\r\ntest12\r\n$6\r\ntest13\r\n*2\r\n$6\r\ntest21\r\n$6\r\ntest22\r\n",
+        ];
+        let expected_results = vec![
+            make_array(&["test1"]),
+            make_array(&["test1", "test2", "test3"]),
+            RespDataType::Array {
+                data: vec![make_array(&["test1", "test2"])],
+            },
+            RespDataType::Array {
+                data: vec![
+                    make_array(&["test11", "test12", "test13"]),
+                    make_array(&["test21", "test22"]),
+                ],
+            },
+        ];
+        for (input, expected) in inputs.iter().zip(expected_results.into_iter()) {
+            let test_case = TestCase {
+                input: input.to_string(),
+                expected_result: ExpectedResult::Success { result: expected },
             };
             run_test_case(test_case);
         }
