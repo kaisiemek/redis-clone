@@ -1,3 +1,5 @@
+mod string_commands;
+
 use std::collections::HashMap;
 
 use anyhow::Result;
@@ -64,11 +66,10 @@ impl KVStore {
             }
             Commands::Ping => String::from("PONG"),
             Commands::Set { key, value } => {
-                self.data.insert(key, value);
+                self.set(key, value);
                 String::from("OK")
             }
             Commands::Get { key } => self
-                .data
                 .get(&key)
                 .map(|val| format!("\"{}\"", val))
                 .unwrap_or(String::from("(nil)")),
