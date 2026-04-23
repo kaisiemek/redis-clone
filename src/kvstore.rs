@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use anyhow::Result;
 use clap::Parser;
 use tokio::sync::{mpsc, oneshot};
@@ -8,11 +10,9 @@ use tokio_util::sync::CancellationToken;
 pub enum Commands {
     Quit,
 
-    Echo {
-        message: String,
-        #[arg(short, long, default_value_t = 1)]
-        times: u8,
-    },
+    Ping,
+    Set { key: String, value: String },
+    Get { key: String },
 }
 
 #[derive(Debug)]
@@ -24,6 +24,7 @@ pub struct Event {
 pub struct KVStore {
     event_channel: mpsc::UnboundedReceiver<Event>,
     cancellation_token: CancellationToken,
+    data: HashMap<String, String>,
 }
 
 impl KVStore {
@@ -34,6 +35,7 @@ impl KVStore {
         KVStore {
             event_channel,
             cancellation_token,
+            data: HashMap::new(),
         }
     }
 
@@ -53,14 +55,23 @@ impl KVStore {
         Ok(())
     }
 
-    fn handle_event(&self, event: Event) {
+    fn handle_event(&mut self, event: Event) {
         log::debug!("handling event {:?}", event.command);
         let reply = match event.command {
             Commands::Quit => {
                 self.cancellation_token.cancel();
                 String::new()
             }
-            Commands::Echo { message, times } => message.repeat(times as usize),
+            Commands::Ping => String::from("PONG"),
+            Commands::Set { key, value } => {
+                self.data.insert(key, value);
+                String::from("OK")
+            }
+            Commands::Get { key } => self
+                .data
+                .get(&key)
+                .map(|val| format!("\"{}\"", val))
+                .unwrap_or(String::from("(nil)")),
         };
         if event.reply_channel.send(Ok(reply)).is_err() {
             log::error!("couldn't reply to the event!");
