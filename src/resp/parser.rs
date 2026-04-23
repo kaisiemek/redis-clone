@@ -2,12 +2,7 @@ use std::io::BufRead;
 
 use anyhow::{Context, Result, bail};
 
-#[derive(Debug, PartialEq)]
-pub enum RespDataType {
-    Array { data: Vec<RespDataType> },
-    BulkString { data: String },
-    Null,
-}
+use crate::resp::RespDataType;
 
 pub struct RespParser<R: BufRead> {
     reader: R,
@@ -19,16 +14,14 @@ impl<R: BufRead> RespParser<R> {
     }
 
     pub fn parse(&mut self) -> Result<RespDataType> {
-        let mut buf = [0x00; 1];
+        let mut buf = [0u8; 1];
         self.reader
             .read_exact(&mut buf)
             .context("couldn't read the RESP data type byte")?;
         match buf[0] as char {
             '*' => self.parse_array(),
             '$' => self.parse_bulk_string(),
-            other => {
-                bail!("unknown RESP data type indicator: {}", other);
-            }
+            other => bail!("unknown RESP data type indicator: {}", other),
         }
     }
 
