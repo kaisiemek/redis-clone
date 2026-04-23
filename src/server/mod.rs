@@ -1,3 +1,5 @@
+mod protocol;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU8, Ordering};
