@@ -4,14 +4,13 @@ use std::sync::atomic::{AtomicU8, Ordering};
 use std::time::Duration;
 
 use anyhow::{Context, Result};
-use clap::Parser;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{mpsc, oneshot};
 use tokio::time::{sleep, timeout};
 use tokio_util::sync::CancellationToken;
 
-use crate::kvstore;
+use crate::kvstore::{self, command};
 
 const DEFAULT_SERVER_SOCKET: &str = "127.0.0.1:55123";
 
@@ -109,8 +108,8 @@ impl Server {
     }
 
     async fn handle_client_request(&self, line: &str) -> Result<String> {
-        let parts: Vec<&str> = line.split_whitespace().collect();
-        let command = kvstore::Commands::try_parse_from(parts)?;
+        // let parts: Vec<&str> = line.split_whitespace().collect();
+        let command = kvstore::command::Command::Ping { message: None };
         let (sender, receiver) = oneshot::channel();
 
         self.event_tx.send(kvstore::Event {

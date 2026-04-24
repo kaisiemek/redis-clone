@@ -1,25 +1,15 @@
+pub mod command;
 mod string_commands;
 
-use std::collections::HashMap;
-
+use crate::kvstore::command::Command;
 use anyhow::Result;
-use clap::Parser;
+use std::collections::HashMap;
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
-#[derive(Debug, Parser)]
-#[command(no_binary_name = true)]
-pub enum Commands {
-    Quit,
-
-    Ping,
-    Set { key: String, value: String },
-    Get { key: String },
-}
-
 #[derive(Debug)]
 pub struct Event {
-    pub command: Commands,
+    pub command: command::Command,
     pub reply_channel: oneshot::Sender<Result<String>>,
 }
 
@@ -60,16 +50,19 @@ impl KVStore {
     fn handle_event(&mut self, event: Event) {
         log::debug!("handling event {:?}", event.command);
         let reply = match event.command {
-            Commands::Quit => {
+            Command::Quit => {
                 self.cancellation_token.cancel();
                 String::new()
             }
-            Commands::Ping => String::from("PONG"),
-            Commands::Set { key, value } => {
+            Command::Ping { message } => match message {
+                None => String::from("PONG"),
+                Some(msg) => msg,
+            },
+            Command::Set { key, value } => {
                 self.set(key, value);
                 String::from("OK")
             }
-            Commands::Get { key } => self
+            Command::Get { key } => self
                 .get(&key)
                 .map(|val| format!("\"{}\"", val))
                 .unwrap_or(String::from("(nil)")),
