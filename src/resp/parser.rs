@@ -100,16 +100,6 @@ mod tests {
         parser
     }
 
-    fn make_array(content: &[&str]) -> RespDataType {
-        let mut data = Vec::new();
-        for string in content {
-            data.push(RespDataType::BulkString {
-                data: String::from(*string),
-            });
-        }
-        RespDataType::Array { data }
-    }
-
     fn run_test_case(test_case: TestCase) {
         let result = get_parser(&test_case.input).parse();
         match test_case.expected_result {
@@ -179,16 +169,16 @@ mod tests {
             "*1\r\n*2\r\n$5\r\ntest1\r\n$5\r\ntest2\r\n",
             "*2\r\n*3\r\n$6\r\ntest11\r\n$6\r\ntest12\r\n$6\r\ntest13\r\n*2\r\n$6\r\ntest21\r\n$6\r\ntest22\r\n",
         ];
-        let expected_results = vec![
-            make_array(&["test1"]),
-            make_array(&["test1", "test2", "test3"]),
+        let expected_results: Vec<RespDataType> = vec![
+            ["test1"].as_slice().into(),
+            ["test1", "test2", "test3"].as_slice().into(),
             RespDataType::Array {
-                data: vec![make_array(&["test1", "test2"])],
+                data: vec![["test1", "test2"].as_slice().into()],
             },
             RespDataType::Array {
                 data: vec![
-                    make_array(&["test11", "test12", "test13"]),
-                    make_array(&["test21", "test22"]),
+                    ["test11", "test12", "test13"].as_slice().into(),
+                    ["test21", "test22"].as_slice().into(),
                 ],
             },
         ];

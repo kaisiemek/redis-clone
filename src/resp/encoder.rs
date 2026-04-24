@@ -23,18 +23,6 @@ fn encode_bulk_string(string: String) -> String {
 mod test {
     use super::*;
 
-    fn make_string(content: &str) -> RespDataType {
-        RespDataType::BulkString {
-            data: content.to_string(),
-        }
-    }
-
-    fn make_array(content: &[&str]) -> RespDataType {
-        RespDataType::Array {
-            data: content.iter().map(|s| make_string(s)).collect(),
-        }
-    }
-
     #[test]
     fn test_bulkstring() {
         let test_cases = vec![
@@ -44,22 +32,22 @@ mod test {
         ];
 
         for test_case in test_cases {
-            assert_eq!(encode_resp_data(make_string(test_case.0)), test_case.1);
+            assert_eq!(encode_resp_data(test_case.0.into()), test_case.1);
         }
     }
 
     #[test]
     fn test_array() {
         let inputs = vec![
-            make_array(&["test1"]),
-            make_array(&["test1", "test2", "test3"]),
+            ["test1"].as_slice().into(),
+            ["test1", "test2", "test3"].as_slice().into(),
             RespDataType::Array {
-                data: vec![make_array(&["test1", "test2"])],
+                data: vec![["test1", "test2"].as_slice().into()],
             },
             RespDataType::Array {
                 data: vec![
-                    make_array(&["test11", "test12", "test13"]),
-                    make_array(&["test21", "test22"]),
+                    ["test11", "test12", "test13"].as_slice().into(),
+                    ["test21", "test22"].as_slice().into(),
                 ],
             },
         ];
