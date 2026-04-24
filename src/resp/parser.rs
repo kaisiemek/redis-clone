@@ -1,9 +1,6 @@
-use std::io::BufRead;
+use anyhow::{Context, Result, ensure};
 
-use anyhow::{Context, Result, bail, ensure};
-use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, BufReader};
-
-use crate::{kvstore::command::Command, resp::RespDataType};
+use crate::resp::RespDataType;
 
 enum ParserState {
     ReadArrayLength,
