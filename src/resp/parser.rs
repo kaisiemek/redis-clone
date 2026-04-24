@@ -1,193 +1,170 @@
 use std::io::BufRead;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncReadExt, BufReader};
 
-use crate::resp::RespDataType;
+use crate::{kvstore::command::Command, resp::RespDataType};
 
-pub struct RespParser<R: BufRead> {
-    reader: R,
+enum ParserState {
+    ReadArrayLength,
+    ReadBulkStringLength,
+    ReadString { length: usize },
+}
+pub struct RespCommandParser {
+    command_fragments: Vec<RespDataType>,
+    expected_array_size: usize,
+    current_state: ParserState,
 }
 
-impl<R: BufRead> RespParser<R> {
-    pub fn new(reader: R) -> Self {
-        RespParser { reader }
-    }
-
-    pub fn parse(&mut self) -> Result<RespDataType> {
-        let mut buf = [0u8; 1];
-        self.reader
-            .read_exact(&mut buf)
-            .context("couldn't read the RESP data type byte")?;
-        match buf[0] as char {
-            '*' => self.parse_array(),
-            '$' => self.parse_bulk_string(),
-            other => bail!("unknown RESP data type indicator: {}", other),
+impl RespCommandParser {
+    pub fn new() -> Self {
+        Self {
+            command_fragments: Vec::new(),
+            expected_array_size: 0,
+            current_state: ParserState::ReadArrayLength,
         }
     }
 
-    fn parse_array(&mut self) -> Result<RespDataType> {
-        let element_count: usize = self
-            .read_line()
-            .context("couldn't read the element count line for the array")?
-            .parse()
-            .context("the character count line didn't contain a valid number")?;
-
-        let mut data = Vec::new();
-        while data.len() != element_count {
-            data.push(self.parse().context(format!(
-                "an error occurred while parsing the {}nth element of the array",
-                data.len() + 1
-            ))?);
+    pub fn feed_line(&mut self, line: String) -> Result<Option<RespDataType>> {
+        let result = self.feed_line_inner(line);
+        // reset the parser if the command parsing is complete or an error occurred
+        match result {
+            Err(_) | Ok(Some(_)) => self.reset(),
+            _ => {}
         }
-
-        Ok(RespDataType::Array { data })
+        result
     }
 
-    fn parse_bulk_string(&mut self) -> Result<RespDataType> {
-        // a bulk string will look like this: $<character count>\r\n<string>\r\n
-        let character_count: usize = self
-            .read_line()
-            .context("couldn't read the character count line for the bulk string")?
-            .parse()
-            .context("the character count line didn't contain a valid number")?;
-        let string_content = self
-            .read_line()
-            .context("couldn't read the bulk string content")?;
-
-        if string_content.len() != character_count {
-            bail!(
-                "the string {} didn't contain the expected amount of characters ({})",
-                string_content,
-                character_count
-            );
-        }
-
-        Ok(RespDataType::BulkString {
-            data: string_content,
-        })
-    }
-
-    fn read_line(&mut self) -> Result<String> {
-        let mut line = String::new();
-        self.reader.read_line(&mut line)?;
-        if !line.ends_with("\r\n") {
-            bail!("line {} was not terminated properly! (\\r\\n)", line);
-        }
-        // remove the CRLF line ending
+    fn feed_line_inner(&mut self, mut line: String) -> Result<Option<RespDataType>> {
+        // remove the line ending
+        ensure!(
+            line.ends_with("\r\n"),
+            "[parser] line wasn't properly terminated: {}",
+            line
+        );
         line.truncate(line.len() - 2);
-        Ok(line)
+
+        match self.current_state {
+            ParserState::ReadArrayLength => self.read_array_length(line)?,
+            ParserState::ReadBulkStringLength => self.read_bulk_string_length(line)?,
+            ParserState::ReadString { length } => self.read_bulk_string(line, length)?,
+        }
+
+        if self.expected_array_size == 0 {
+            Ok(Some(RespDataType::Array { data: Vec::new() }))
+        } else if self.command_fragments.len() == self.expected_array_size {
+            let elements = std::mem::take(&mut self.command_fragments);
+            Ok(Some(RespDataType::Array { data: elements }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn read_array_length(&mut self, line: String) -> Result<()> {
+        ensure!(
+            line.starts_with('*'),
+            "[parser] expected an array length line, got: {}",
+            line
+        );
+        self.expected_array_size = line[1..].parse().context("[parser] invalid array length")?;
+
+        // just ignore empty arrays and wait for the next one
+        if self.expected_array_size != 0 {
+            self.current_state = ParserState::ReadBulkStringLength;
+        }
+        Ok(())
+    }
+
+    fn read_bulk_string_length(&mut self, line: String) -> Result<()> {
+        ensure!(
+            line.starts_with('$'),
+            "[parser] expected a bulk string length line, got: {}",
+            line
+        );
+        let string_length: usize = line[1..]
+            .parse()
+            .context("[parser] invalid string length")?;
+        self.current_state = ParserState::ReadString {
+            length: string_length,
+        };
+        Ok(())
+    }
+
+    fn read_bulk_string(&mut self, line: String, expected_length: usize) -> Result<()> {
+        ensure!(
+            line.len() == expected_length,
+            "[parser] bulk string had the wrong length, expected: {}, got: {}",
+            expected_length,
+            line.len()
+        );
+        self.command_fragments
+            .push(RespDataType::BulkString { data: line });
+        self.current_state = ParserState::ReadBulkStringLength;
+        Ok(())
+    }
+
+    fn reset(&mut self) {
+        self.expected_array_size = 0;
+        self.current_state = ParserState::ReadArrayLength;
+        self.command_fragments.clear();
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::BufReader;
-
-    enum ExpectedResult {
-        Success { result: RespDataType },
-        Error,
-    }
-
-    struct TestCase {
-        input: String,
-        expected_result: ExpectedResult,
-    }
-
-    fn get_parser(input: &str) -> RespParser<BufReader<&[u8]>> {
-        let bufreader = BufReader::new(input.as_bytes());
-        let parser = RespParser::new(bufreader);
-        parser
-    }
-
-    fn run_test_case(test_case: TestCase) {
-        let result = get_parser(&test_case.input).parse();
-        match test_case.expected_result {
-            ExpectedResult::Success {
-                result: expected_result,
-            } => {
-                assert_eq!(result.unwrap(), expected_result);
-            }
-            ExpectedResult::Error => {
-                result.unwrap_err();
-            }
-        }
-    }
 
     #[test]
     fn test_invalid_inputs() {
         let inputs = vec![
-            "",
+            " ",
             "\r\n\r\n",
-            "no type byte",
-            "$10\r\n",                 // no string content
-            "$10\r\ntest\r\n",         // string too short
-            "$4\r\ntesttest\r\n",      // string too long
-            "$\r\ntesttest\r\n",       // no string length
-            "$xx\r\ntest",             // invalid string length
-            "$-10\r\ntest",            // negative string length
-            "*-10\r\n",                // negative array length
-            "*2\r\n$1\r\nt\r\n",       // not enough elements in array
-            "*1\r\n*2\r\n$1\r\nt\r\n", // not enough elements in subarray
-            "*1\r\n",                  // empty array
+            "no array len",
+            "$10\r\n",                      // start with bulk string
+            "*1\r\n$10\r\ntest\r\n",        // string too short
+            "*1\r\n$4\r\ntesttest\r\n",     // string too long
+            "*1\r\n$\r\ntesttest\r\n",      // no string length
+            "*1$xx\r\ntest",                // invalid string length
+            "*1$-10\r\ntest",               // negative string length
+            "*1\r\n$1\r\nt\r\n$1\r\nt\r\n", // string after valid array
+            "*\r\n",                        // no array length
+            "*-1\r\n",                      // negative array length
+            "*xx\r\n",                      // invalid array length
         ];
+
+        let mut parser = RespCommandParser::new();
         for input in inputs {
-            let test_case = TestCase {
-                input: String::from(input),
-                expected_result: ExpectedResult::Error,
-            };
-            run_test_case(test_case);
+            let mut error_occurred = false;
+            for line in input.split_inclusive("\r\n") {
+                error_occurred = parser.feed_line(line.to_string()).is_err();
+            }
+            assert!(error_occurred, "no error occured for input {}", input);
         }
     }
 
     #[test]
-    fn test_bulkstring() {
-        let test_cases = vec![
-            ("$1\r\nt\r\n", "t"),
-            ("$4\r\ntest\r\n", "test"),
-            ("$10\r\n0123456789\r\n", "0123456789"),
-        ];
-        for test_case_content in test_cases {
-            let (input, expected) = test_case_content;
-            let test_case = TestCase {
-                input: String::from(input),
-                expected_result: ExpectedResult::Success {
-                    result: RespDataType::BulkString {
-                        data: String::from(expected),
-                    },
-                },
-            };
-            run_test_case(test_case);
-        }
-    }
-
-    #[test]
-    fn test_array() {
+    fn test_valid_arrays() {
         let inputs = vec![
             "*1\r\n$5\r\ntest1\r\n",
             "*3\r\n$5\r\ntest1\r\n$5\r\ntest2\r\n$5\r\ntest3\r\n",
-            "*1\r\n*2\r\n$5\r\ntest1\r\n$5\r\ntest2\r\n",
-            "*2\r\n*3\r\n$6\r\ntest11\r\n$6\r\ntest12\r\n$6\r\ntest13\r\n*2\r\n$6\r\ntest21\r\n$6\r\ntest22\r\n",
+            "*0\r\n",
+            "*2\r\n$0\r\n\r\n$4\r\ntest\r\n",
         ];
         let expected_results: Vec<RespDataType> = vec![
             ["test1"].as_slice().into(),
             ["test1", "test2", "test3"].as_slice().into(),
-            RespDataType::Array {
-                data: vec![["test1", "test2"].as_slice().into()],
-            },
-            RespDataType::Array {
-                data: vec![
-                    ["test11", "test12", "test13"].as_slice().into(),
-                    ["test21", "test22"].as_slice().into(),
-                ],
-            },
+            [].as_slice().into(),
+            ["", "test"].as_slice().into(),
         ];
-        for (input, expected) in inputs.iter().zip(expected_results.into_iter()) {
-            let test_case = TestCase {
-                input: input.to_string(),
-                expected_result: ExpectedResult::Success { result: expected },
-            };
-            run_test_case(test_case);
+
+        let mut parser = RespCommandParser::new();
+        for (input, expected) in inputs.into_iter().zip(expected_results.into_iter()) {
+            let mut output = None;
+            for line in input.split_inclusive("\r\n") {
+                output = parser.feed_line(line.to_string()).unwrap();
+            }
+
+            assert_eq!(output.unwrap(), expected);
         }
     }
 }
