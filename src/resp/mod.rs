@@ -7,6 +7,7 @@ use anyhow::{Result, bail};
 pub enum RespDataType {
     Array { data: Vec<RespDataType> },
     BulkString { data: String },
+    Nil,
 }
 
 // clone the &strs in the slice into an Array of BulkString
@@ -31,6 +32,15 @@ impl From<&str> for RespDataType {
 impl From<String> for RespDataType {
     fn from(value: String) -> Self {
         RespDataType::BulkString { data: value }
+    }
+}
+
+impl From<Option<String>> for RespDataType {
+    fn from(value: Option<String>) -> Self {
+        match value {
+            Some(string) => string.into(),
+            None => RespDataType::Nil,
+        }
     }
 }
 
@@ -59,6 +69,7 @@ impl TryFrom<RespDataType> for Vec<String> {
             RespDataType::BulkString { data } => {
                 vec.push(data);
             }
+            other => bail!("{:?} can't be converted to a string vector", other),
         }
         Ok(vec)
     }

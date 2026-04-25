@@ -66,24 +66,21 @@ impl KVStore {
         Self::send_reply(event.reply_channel, reply);
     }
 
-    fn handle_command(&mut self, command: Command) -> Result<String> {
+    fn handle_command(&mut self, command: Command) -> Result<RespDataType> {
         let reply = match command {
             Command::Quit => {
                 self.cancellation_token.cancel();
-                String::new()
+                "OK".into()
             }
             Command::Ping { message } => match message {
-                None => String::from("PONG"),
-                Some(msg) => msg,
+                None => "PONG".into(),
+                Some(msg) => msg.into(),
             },
             Command::Set { key, value } => {
                 self.set(key, value);
-                String::from("OK")
+                "OK".into()
             }
-            Command::Get { key } => self
-                .get(&key)
-                .map(|val| format!("\"{}\"", val))
-                .unwrap_or(String::from("(nil)")),
+            Command::Get { key } => self.get(&key),
         };
         Ok(reply)
     }

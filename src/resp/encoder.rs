@@ -4,6 +4,7 @@ pub fn encode_resp_data(resp_data: RespDataType) -> String {
     match resp_data {
         RespDataType::Array { data } => encode_array(data),
         RespDataType::BulkString { data } => encode_bulk_string(data),
+        RespDataType::Nil => String::from("(nil)"),
     }
 }
 
