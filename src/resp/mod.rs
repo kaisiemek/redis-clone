@@ -7,6 +7,7 @@ use anyhow::{Result, bail};
 pub enum RespDataType {
     Array { data: Vec<RespDataType> },
     BulkString { data: String },
+    Error { message: String },
     Nil,
 }
 
@@ -40,6 +41,14 @@ impl From<Option<String>> for RespDataType {
         match value {
             Some(string) => string.into(),
             None => RespDataType::Nil,
+        }
+    }
+}
+
+impl From<anyhow::Error> for RespDataType {
+    fn from(value: anyhow::Error) -> Self {
+        Self::Error {
+            message: value.to_string(),
         }
     }
 }

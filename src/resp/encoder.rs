@@ -3,8 +3,9 @@ use crate::resp::RespDataType;
 pub fn encode_resp_data(resp_data: RespDataType) -> String {
     match resp_data {
         RespDataType::Array { data } => encode_array(data),
-        RespDataType::BulkString { data } => encode_bulk_string(data),
-        RespDataType::Nil => String::from("(nil)"),
+        RespDataType::BulkString { data } => format!("${}\r\n{}\r\n", data.len(), data),
+        RespDataType::Error { message } => format!("-{}\r\n", message),
+        RespDataType::Nil => String::from("_\r\n"),
     }
 }
 
@@ -16,13 +17,20 @@ fn encode_array(array: Vec<RespDataType>) -> String {
     string
 }
 
-fn encode_bulk_string(string: String) -> String {
-    format!("${}\r\n{}\r\n", string.len(), string)
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_error() {
+        let test_cases = vec![
+            (anyhow::anyhow!("error message"), "-error message\r\n"),
+            (anyhow::anyhow!(""), "-\r\n"),
+        ];
+        for test_case in test_cases {
+            assert_eq!(encode_resp_data(test_case.0.into()), test_case.1);
+        }
+    }
 
     #[test]
     fn test_bulkstring() {

@@ -52,15 +52,15 @@ impl KVStore {
         let command: Command = match Command::try_from(event.data) {
             Ok(cmd) => cmd,
             Err(err) => {
-                Self::send_reply(event.reply_channel, RespDataType::from(err.to_string()));
+                Self::send_reply(event.reply_channel, err.into());
                 return;
             }
         };
         log::debug!("[kvstore] got command from RESP data: {:?}", command);
 
         let reply = match self.handle_command(command) {
-            Ok(reply) => RespDataType::from(reply),
-            Err(err) => RespDataType::from(err.to_string()),
+            Ok(reply) => reply,
+            Err(err) => err.into(),
         };
         log::debug!("[kvstore] sending reply: {:?}", reply);
         Self::send_reply(event.reply_channel, reply);
