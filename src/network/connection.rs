@@ -13,8 +13,8 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use crate::{
-    kvstore::{self, Event, command::Command},
-    resp::parser::RespCommandParser,
+    kvstore::{self, Event},
+    resp::{encoder::encode_resp_data, parser::RespCommandParser},
 };
 
 pub struct Connection {
@@ -87,7 +87,6 @@ impl Connection {
         if let Some(reply) = self.get_reply(line).await {
             log::debug!("[connection {}] sending reply: {}", self.addr, reply);
             self.writer.write_all(reply.as_bytes()).await?;
-            self.writer.write_all(b"\r\n").await?;
         }
         Ok(())
     }
@@ -107,17 +106,12 @@ impl Connection {
             self.addr,
             resp_data
         );
-        let command = Command::try_from(resp_data)?;
-        log::debug!(
-            "[connection {}] got command from RESP data: {:?}",
-            self.addr,
-            command
-        );
         let (sender, receiver) = oneshot::channel();
         self.event_channel.send(kvstore::Event {
             reply_channel: sender,
-            command,
+            data: resp_data,
         })?;
-        Ok(Some(timeout(Duration::from_millis(500), receiver).await???))
+        let kvstore_reply = timeout(Duration::from_millis(500), receiver).await??;
+        Ok(Some(encode_resp_data(kvstore_reply)))
     }
 }

@@ -27,6 +27,13 @@ impl From<&str> for RespDataType {
     }
 }
 
+// move the String data into a BulkString
+impl From<String> for RespDataType {
+    fn from(value: String) -> Self {
+        RespDataType::BulkString { data: value }
+    }
+}
+
 impl TryFrom<RespDataType> for String {
     type Error = anyhow::Error;
 
