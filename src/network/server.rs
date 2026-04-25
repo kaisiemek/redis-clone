@@ -67,16 +67,13 @@ impl Server {
         let (stream, addr) = connection;
         tokio::spawn(async move {
             self.active_connections.fetch_add(1, Ordering::SeqCst);
-            if let Err(err) = Connection::run(
+            Connection::run(
                 stream,
                 addr,
                 self.cancellation_token.clone(),
                 self.event_tx.clone(),
             )
-            .await
-            {
-                log::error!("[client {}] an error occurred: {}", addr, err);
-            }
+            .await;
             self.active_connections.fetch_sub(1, Ordering::SeqCst);
         });
     }

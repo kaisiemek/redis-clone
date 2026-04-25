@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, time::Duration};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{
@@ -14,7 +14,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     kvstore::{self, Event, command::Command},
-    resp::{RespDataType, parser::RespCommandParser},
+    resp::parser::RespCommandParser,
 };
 
 pub struct Connection {
@@ -24,6 +24,7 @@ pub struct Connection {
     cancellation_token: CancellationToken,
     event_channel: mpsc::UnboundedSender<Event>,
     parser: RespCommandParser,
+    linebuf: Vec<u8>,
 }
 
 impl Connection {
@@ -41,6 +42,7 @@ impl Connection {
             cancellation_token,
             event_channel,
             parser: RespCommandParser::new(),
+            linebuf: Vec::new(),
         }
     }
 
@@ -49,28 +51,31 @@ impl Connection {
         addr: SocketAddr,
         cancellation_token: CancellationToken,
         event_channel: mpsc::UnboundedSender<Event>,
-    ) -> Result<()> {
-        log::info!("[client {}] new connection", addr);
+    ) {
+        log::info!("[connection {}] established", addr);
         let mut connection = Self::new(stream, addr, cancellation_token, event_channel);
-        connection.main_loop().await
+        match connection.main_loop().await {
+            Ok(_) => log::info!("[connection {}] ended, client disconnected", addr),
+            Err(err) => log::error!("[connection {}] ended, {}", addr, err),
+        }
     }
 
     async fn main_loop(&mut self) -> Result<()> {
-        let mut linebuf = Vec::new();
         loop {
             tokio::select! {
                 _ = self.cancellation_token.cancelled() => {
-                    break;
+                    bail!("server shutting down");
                 }
 
-                line_result = self.reader.read_until(b'\n', &mut linebuf) => {
+                line_result = self.reader.read_until(b'\n', &mut self.linebuf) => {
                     let bytes_read = line_result?;
                     if bytes_read == 0 {
-                        log::info!("[client {}] disconnected", self.addr);
                         break;
                     }
-                    self.process_line(String::from_utf8_lossy(&linebuf).to_string()).await?;
-                    linebuf.clear();
+                    let line = String::from_utf8_lossy(&self.linebuf).to_string();
+                    log::debug!("[connection {}] received {} bytes: {}", self.addr, bytes_read, line);
+                    self.process_line(line).await?;
+                    self.linebuf.clear();
                 }
             }
         }
@@ -78,26 +83,41 @@ impl Connection {
     }
 
     async fn process_line(&mut self, line: String) -> Result<()> {
-        let reply = match self.parser.feed_line(line) {
-            Ok(None) => {
-                return Ok(());
-            }
-            Ok(Some(resp_data)) => self.process_resp_data(resp_data).await?,
-            Err(err) => err.to_string(),
-        };
-        self.writer.write_all(reply.as_bytes()).await?;
-        self.writer.write_all(b"\r\n").await?;
+        log::debug!("[connection {}] processing line {}", self.addr, line.trim());
+        if let Some(reply) = self.get_reply(line).await {
+            log::debug!("[connection {}] sending reply: {}", self.addr, reply);
+            self.writer.write_all(reply.as_bytes()).await?;
+            self.writer.write_all(b"\r\n").await?;
+        }
         Ok(())
     }
 
-    async fn process_resp_data(&self, data: RespDataType) -> Result<String> {
-        let command = Command::try_from(data)?;
+    async fn get_reply(&mut self, line: String) -> Option<String> {
+        self.produce_reply(line)
+            .await
+            .unwrap_or_else(|err| Some(err.to_string()))
+    }
+
+    async fn produce_reply(&mut self, line: String) -> Result<Option<String>> {
+        let Some(resp_data) = self.parser.feed_line(line)? else {
+            return Ok(None);
+        };
+        log::debug!(
+            "[connection {}] got RESP data from parser: {:?}",
+            self.addr,
+            resp_data
+        );
+        let command = Command::try_from(resp_data)?;
+        log::debug!(
+            "[connection {}] got command from RESP data: {:?}",
+            self.addr,
+            command
+        );
         let (sender, receiver) = oneshot::channel();
         self.event_channel.send(kvstore::Event {
             reply_channel: sender,
             command,
         })?;
-
-        timeout(Duration::from_millis(500), receiver).await??
+        Ok(Some(timeout(Duration::from_millis(500), receiver).await???))
     }
 }

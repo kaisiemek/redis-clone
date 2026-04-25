@@ -1,2 +1,4 @@
-pub mod connection;
+mod connection;
 pub mod server;
+
+pub use server::Server;

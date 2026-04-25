@@ -27,7 +27,7 @@ async fn run_threads() -> Result<()> {
     let (event_tx, event_rx) = mpsc::unbounded_channel::<kvstore::Event>();
     let cancellation_token = CancellationToken::new();
 
-    let server = network::server::Server::new(event_tx, cancellation_token.clone());
+    let server = network::Server::new(event_tx, cancellation_token.clone());
     let mut kvstore = kvstore::KVStore::new(event_rx, cancellation_token);
 
     let event_thread = tokio::spawn(async move { kvstore.run_event_loop().await });
