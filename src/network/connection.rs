@@ -73,7 +73,8 @@ impl Connection {
                         break;
                     }
                     let line = String::from_utf8_lossy(&self.linebuf).to_string();
-                    log::debug!("[connection {}] received {} bytes: {}", self.addr, bytes_read, line);
+                    log::debug!("[connection {}] received {} bytes: {}", self.addr, bytes_read, line.replace("\r\n",
+                    "\\r\\n"));
                     self.process_line(line).await?;
                     self.linebuf.clear();
                 }
@@ -83,9 +84,12 @@ impl Connection {
     }
 
     async fn process_line(&mut self, line: String) -> Result<()> {
-        log::debug!("[connection {}] processing line {}", self.addr, line.trim());
         if let Some(reply) = self.get_reply(line).await {
-            log::debug!("[connection {}] sending reply: {}", self.addr, reply);
+            log::debug!(
+                "[connection {}] sending reply: {}",
+                self.addr,
+                reply.replace("\r\n", "\\r\\n")
+            );
             self.writer.write_all(reply.as_bytes()).await?;
         }
         Ok(())
