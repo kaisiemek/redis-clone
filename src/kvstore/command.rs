@@ -14,8 +14,7 @@ impl TryFrom<RespDataType> for Command {
     type Error = anyhow::Error;
 
     fn try_from(respdata: RespDataType) -> Result<Command> {
-        let array: Vec<String> = respdata.try_into()?;
-        array.try_into()
+        Vec::try_from(respdata)?.try_into()
     }
 }
 
@@ -23,17 +22,10 @@ impl TryFrom<Vec<String>> for Command {
     type Error = anyhow::Error;
 
     fn try_from(array: Vec<String>) -> Result<Command> {
-        let cmd = array
-            .first()
-            .ok_or(anyhow!("received an empty command array"))?
-            .to_ascii_lowercase();
-        let arg_count_range = Command::get_arg_count_range(cmd.as_str());
-        if array.len() - 1 < arg_count_range.0 || array.len() - 1 > arg_count_range.1 {
-            bail!("wrong number of arguments for '{}' command", cmd);
-        }
-
-        // skip the command itself
-        let mut iter = array.into_iter().skip(1);
+        let mut iter = array.into_iter();
+        let cmd = iter
+            .next()
+            .ok_or(anyhow!("received an empty command array"))?;
 
         let command = match cmd.as_str() {
             "quit" => Command::Quit,
@@ -41,29 +33,27 @@ impl TryFrom<Vec<String>> for Command {
                 message: iter.next(),
             },
             "get" => Command::Get {
-                key: iter.next().unwrap(),
+                key: ensure_next_arg(&mut iter, &cmd)?,
             },
             "set" => Command::Set {
-                key: iter.next().unwrap(),
-                value: iter.next().unwrap(),
+                key: ensure_next_arg(&mut iter, &cmd)?,
+                value: ensure_next_arg(&mut iter, &cmd)?,
             },
             _ => bail!("unknown command '{}'", cmd),
         };
 
+        if iter.next().is_some() {
+            bail!("wrong number of arguments for '{}' command", cmd);
+        }
         Ok(command)
     }
 }
 
-impl Command {
-    fn get_arg_count_range(cmd: &str) -> (usize, usize) {
-        match cmd {
-            "quit" => (0, 0),
-            "ping" => (0, 1),
-            "get" => (1, 1),
-            "set" => (2, 2),
-            _ => (0, 0),
-        }
-    }
+fn ensure_next_arg<I: Iterator<Item = String>>(iter: &mut I, command: &str) -> Result<String> {
+    iter.next().ok_or(anyhow!(
+        "wrong number of arguments for '{}' command",
+        command
+    ))
 }
 
 #[cfg(test)]
