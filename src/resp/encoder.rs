@@ -6,6 +6,7 @@ pub fn encode_resp_data(resp_data: RespDataType) -> String {
         RespDataType::BulkString { data } => format!("${}\r\n{}\r\n", data.len(), data),
         RespDataType::Error { message } => format!("-{}\r\n", message),
         RespDataType::Nil => String::from("_\r\n"),
+        RespDataType::SimpleString { data } => format!("+{}\r\n", data),
     }
 }
 
@@ -20,30 +21,6 @@ fn encode_array(array: Vec<RespDataType>) -> String {
 #[cfg(test)]
 mod test {
     use super::*;
-
-    #[test]
-    fn test_error() {
-        let test_cases = vec![
-            (anyhow::anyhow!("error message"), "-error message\r\n"),
-            (anyhow::anyhow!(""), "-\r\n"),
-        ];
-        for test_case in test_cases {
-            assert_eq!(encode_resp_data(test_case.0.into()), test_case.1);
-        }
-    }
-
-    #[test]
-    fn test_bulkstring() {
-        let test_cases = vec![
-            ("t", "$1\r\nt\r\n"),
-            ("test", "$4\r\ntest\r\n"),
-            ("0123456789", "$10\r\n0123456789\r\n"),
-        ];
-
-        for test_case in test_cases {
-            assert_eq!(encode_resp_data(test_case.0.into()), test_case.1);
-        }
-    }
 
     #[test]
     fn test_array() {
@@ -68,6 +45,43 @@ mod test {
         ];
         for (input, expected) in inputs.into_iter().zip(expected_results.iter()) {
             assert_eq!(encode_resp_data(input), String::from(*expected));
+        }
+    }
+
+    #[test]
+    fn test_bulkstring() {
+        let test_cases = vec![
+            ("t", "$1\r\nt\r\n"),
+            ("test", "$4\r\ntest\r\n"),
+            ("0123456789", "$10\r\n0123456789\r\n"),
+        ];
+
+        for test_case in test_cases {
+            assert_eq!(encode_resp_data(test_case.0.into()), test_case.1);
+        }
+    }
+
+    #[test]
+    fn test_error() {
+        let test_cases = vec![
+            (anyhow::anyhow!("error message"), "-error message\r\n"),
+            (anyhow::anyhow!(""), "-\r\n"),
+        ];
+        for test_case in test_cases {
+            assert_eq!(encode_resp_data(test_case.0.into()), test_case.1);
+        }
+    }
+
+    #[test]
+    fn test_simple_string() {
+        let test_cases = vec![("simple string", "+simple string\r\n"), ("", "+\r\n")];
+        for test_case in test_cases {
+            assert_eq!(
+                encode_resp_data(RespDataType::SimpleString {
+                    data: test_case.0.into()
+                }),
+                test_case.1.to_string()
+            );
         }
     }
 }

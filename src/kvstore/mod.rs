@@ -68,18 +68,9 @@ impl KVStore {
 
     fn handle_command(&mut self, command: Command) -> Result<RespDataType> {
         let reply = match command {
-            Command::Quit => {
-                self.cancellation_token.cancel();
-                "OK".into()
-            }
-            Command::Ping { message } => match message {
-                None => "PONG".into(),
-                Some(msg) => msg.into(),
-            },
-            Command::Set { key, value } => {
-                self.set(key, value);
-                "OK".into()
-            }
+            Command::Quit => self.quit(),
+            Command::Ping { message } => Self::ping(message),
+            Command::Set { key, value } => self.set(key, value),
             Command::Get { key } => self.get(&key),
         };
         Ok(reply)
@@ -88,6 +79,22 @@ impl KVStore {
     fn send_reply(channel: oneshot::Sender<RespDataType>, data: RespDataType) {
         if channel.send(data).is_err() {
             log::error!("[kvstore] couldn't reply to the event!");
+        }
+    }
+
+    fn ping(message: Option<String>) -> RespDataType {
+        match message {
+            Some(msg) => msg.into(),
+            None => RespDataType::SimpleString {
+                data: String::from("PONG"),
+            },
+        }
+    }
+
+    fn quit(&self) -> RespDataType {
+        self.cancellation_token.cancel();
+        RespDataType::SimpleString {
+            data: String::from("OK"),
         }
     }
 }

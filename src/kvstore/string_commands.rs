@@ -5,7 +5,10 @@ impl KVStore {
         self.data.get(key).cloned().into()
     }
 
-    pub fn set(&mut self, key: String, value: String) {
+    pub fn set(&mut self, key: String, value: String) -> RespDataType {
         self.data.insert(key, value);
+        RespDataType::SimpleString {
+            data: String::from("OK"),
+        }
     }
 }
