@@ -1,6 +1,6 @@
 use std::{net::SocketAddr, time::Duration};
 
-use anyhow::{Result, bail};
+use anyhow::Result;
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{
@@ -55,7 +55,7 @@ impl Connection {
         log::info!("[connection {}] established", addr);
         let mut connection = Self::new(stream, addr, cancellation_token, event_channel);
         match connection.main_loop().await {
-            Ok(_) => log::info!("[connection {}] ended, client disconnected", addr),
+            Ok(_) => log::info!("[connection {}] ended", addr),
             Err(err) => log::error!("[connection {}] ended, {}", addr, err),
         }
     }
@@ -64,12 +64,13 @@ impl Connection {
         loop {
             tokio::select! {
                 _ = self.cancellation_token.cancelled() => {
-                    bail!("server shutting down");
+                    break;
                 }
 
                 line_result = self.reader.read_until(b'\n', &mut self.linebuf) => {
                     let bytes_read = line_result?;
                     if bytes_read == 0 {
+                        log::info!("[connection {}] client disconnected", self.addr);
                         break;
                     }
                     let line = String::from_utf8_lossy(&self.linebuf).to_string();
