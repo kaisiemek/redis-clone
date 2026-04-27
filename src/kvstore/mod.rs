@@ -1,11 +1,12 @@
 pub mod command;
 mod string_commands;
 
-use crate::{kvstore::command::Command, resp::RespDataType};
 use anyhow::Result;
-use std::collections::HashMap;
+use std::{collections::HashMap, time::Instant};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
+
+use crate::{kvstore::command::Command, resp::RespDataType};
 
 #[derive(Debug)]
 pub struct Event {
@@ -16,6 +17,7 @@ pub struct KVStore {
     event_channel: mpsc::UnboundedReceiver<Event>,
     cancellation_token: CancellationToken,
     data: HashMap<String, String>,
+    expiries: HashMap<String, Instant>,
 }
 
 impl KVStore {
@@ -27,6 +29,7 @@ impl KVStore {
             event_channel,
             cancellation_token,
             data: HashMap::new(),
+            expiries: HashMap::new(),
         }
     }
 
@@ -70,7 +73,7 @@ impl KVStore {
         let reply = match command {
             Command::Quit => self.quit(),
             Command::Ping { message } => Self::ping(message),
-            Command::Set { key, value } => self.set(key, value),
+            Command::Set { key, value, expiry } => self.set(key, value, expiry),
             Command::Get { key } => self.get(&key),
         };
         Ok(reply)
