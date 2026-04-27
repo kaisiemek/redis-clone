@@ -26,8 +26,6 @@ impl KVStore {
             self.expiries.insert(key.clone(), expiry);
         }
         self.data.insert(key, value);
-        RespDataType::SimpleString {
-            data: String::from("OK"),
-        }
+        RespDataType::SimpleString(String::from("OK"))
     }
 }

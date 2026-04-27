@@ -6,7 +6,7 @@ pub fn encode_resp_data(resp_data: RespDataType) -> String {
         RespDataType::BulkString { data } => format!("${}\r\n{}\r\n", data.len(), data),
         RespDataType::Error { message } => format!("-ERR {}\r\n", message),
         RespDataType::Nil => String::from("_\r\n"),
-        RespDataType::SimpleString { data } => format!("+{}\r\n", data),
+        RespDataType::SimpleString(string) => format!("+{}\r\n", string),
     }
 }
 
@@ -77,9 +77,7 @@ mod test {
         let test_cases = vec![("simple string", "+simple string\r\n"), ("", "+\r\n")];
         for test_case in test_cases {
             assert_eq!(
-                encode_resp_data(RespDataType::SimpleString {
-                    data: test_case.0.into()
-                }),
+                encode_resp_data(RespDataType::SimpleString(test_case.0.into())),
                 test_case.1.to_string()
             );
         }

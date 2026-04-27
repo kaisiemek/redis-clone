@@ -9,7 +9,7 @@ pub enum RespDataType {
     BulkString { data: String },
     Error { message: String },
     Nil,
-    SimpleString { data: String },
+    SimpleString(String),
 }
 
 // clone the &strs in the slice into an Array of BulkString
