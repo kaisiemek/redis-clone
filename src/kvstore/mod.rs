@@ -72,6 +72,7 @@ impl KVStore {
         let reply = match command {
             Command::Shutdown => self.shutdown(),
             Command::Ping { message } => Self::ping(message),
+            Command::Echo { message } => Self::echo(message),
             Command::Set { key, value, expiry } => self.set(key, value, expiry),
             Command::Get { key } => self.get(&key),
         };

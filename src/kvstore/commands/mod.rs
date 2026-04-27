@@ -14,6 +14,9 @@ pub enum Command {
     Ping {
         message: Option<String>,
     },
+    Echo {
+        message: String,
+    },
     Get {
         key: String,
     },
@@ -45,6 +48,9 @@ impl TryFrom<Vec<String>> for Command {
             "shutdown" => Command::Shutdown,
             "ping" => Command::Ping {
                 message: iter.next(),
+            },
+            "echo" => Command::Echo {
+                message: ensure_next_arg(&mut iter, &cmd)?,
             },
             "get" => Command::Get {
                 key: ensure_next_arg(&mut iter, &cmd)?,
@@ -103,8 +109,10 @@ mod test {
     #[test]
     fn test_invalid_command_parsing() {
         let inputs = vec![
-            vec!["quit", "arg"],
+            vec!["shutdown", "arg"],
             vec!["ping", "message", "too many"],
+            vec!["echo"],
+            vec!["echo", "message", "too many"],
             vec!["unknown-cmd"],
             vec!["get", "key", "too many"],
             vec!["get"],
@@ -127,6 +135,7 @@ mod test {
             vec!["shutdown"],
             vec!["ping"],
             vec!["ping", "test"],
+            vec!["echo", "test"],
             vec!["get", "key"],
             vec!["set", "key", "value"],
             vec!["set", "key", "value", "ex", "10"],
@@ -137,6 +146,9 @@ mod test {
             Command::Ping { message: None },
             Command::Ping {
                 message: Some(String::from("test")),
+            },
+            Command::Echo {
+                message: String::from("test"),
             },
             Command::Get {
                 key: String::from("key"),
