@@ -25,6 +25,15 @@ pub enum Command {
         value: String,
         expiry: Option<Instant>,
     },
+    Del {
+        keys: Vec<String>,
+    },
+    Ttl {
+        key: String,
+    },
+    Pttl {
+        key: String,
+    },
 }
 
 impl TryFrom<RespDataType> for Command {
@@ -56,6 +65,13 @@ impl TryFrom<Vec<String>> for Command {
                 key: ensure_next_arg(&mut iter, &cmd)?,
             },
             "set" => parse_set_command(&mut iter)?,
+            "del" => parse_del_command(&mut iter)?,
+            "ttl" => Command::Ttl {
+                key: ensure_next_arg(&mut iter, &cmd)?,
+            },
+            "pttl" => Command::Pttl {
+                key: ensure_next_arg(&mut iter, &cmd)?,
+            },
             _ => bail!("unknown command '{}'", cmd),
         };
 
@@ -95,6 +111,15 @@ fn parse_set_command<I: Iterator<Item = String>>(iter: &mut I) -> Result<Command
     })
 }
 
+fn parse_del_command<I: Iterator<Item = String>>(iter: &mut I) -> Result<Command> {
+    let keys: Vec<String> = iter.collect();
+    // need at least one key
+    if keys.is_empty() {
+        bail!("wrong number of arguments for 'del' command");
+    }
+    Ok(Command::Del { keys })
+}
+
 fn ensure_next_arg<I: Iterator<Item = String>>(iter: &mut I, command: &str) -> Result<String> {
     iter.next().ok_or(anyhow!(
         "wrong number of arguments for '{}' command",
@@ -117,6 +142,10 @@ mod test {
             vec!["get", "key", "too many"],
             vec!["get"],
             vec!["set"],
+            vec!["ttl", "key", "too many"],
+            vec!["ttl"],
+            vec!["pttl"],
+            vec!["del"],
             vec!["set", "key"],
             vec!["set", "key", "value", "not-ttl"],
             vec!["set", "key", "value", "ex"],
@@ -138,8 +167,10 @@ mod test {
             vec!["echo", "test"],
             vec!["get", "key"],
             vec!["set", "key", "value"],
-            vec!["set", "key", "value", "ex", "10"],
-            vec!["set", "key", "value", "px", "10"],
+            vec!["ttl", "key"],
+            vec!["pttl", "key"],
+            vec!["del", "key"],
+            vec!["del", "1", "2", "3"],
         ];
         let expected_results = vec![
             Command::Shutdown,
@@ -157,6 +188,18 @@ mod test {
                 key: String::from("key"),
                 value: String::from("value"),
                 expiry: None,
+            },
+            Command::Ttl {
+                key: String::from("key"),
+            },
+            Command::Pttl {
+                key: String::from("key"),
+            },
+            Command::Del {
+                keys: vec![String::from("key")],
+            },
+            Command::Del {
+                keys: vec![String::from("1"), String::from("2"), String::from("3")],
             },
         ];
 

@@ -8,8 +8,7 @@ impl KVStore {
         if let Some(expiry) = self.expiries.get(key) {
             if &Instant::now() > expiry {
                 log::debug!("[kvstore] key '{}' expired, removing...", key);
-                self.expiries.remove(key);
-                self.data.remove(key);
+                self.del_entry(key);
             }
         }
         self.data.get(key).cloned().into()

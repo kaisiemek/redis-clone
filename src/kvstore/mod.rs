@@ -75,6 +75,9 @@ impl KVStore {
             Command::Echo { message } => Self::echo(message),
             Command::Set { key, value, expiry } => self.set(key, value, expiry),
             Command::Get { key } => self.get(&key),
+            Command::Del { keys } => self.del(&keys),
+            Command::Ttl { key } => self.ttl(&key),
+            Command::Pttl { key } => self.pttl(&key),
         };
         Ok(reply)
     }
