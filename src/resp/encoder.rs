@@ -7,6 +7,7 @@ pub fn encode_resp_data(resp_data: RespDataType) -> String {
         RespDataType::Error { message } => format!("-ERR {}\r\n", message),
         RespDataType::Nil => String::from("_\r\n"),
         RespDataType::SimpleString(string) => format!("+{}\r\n", string),
+        RespDataType::Integer(int) => format!(":{}\r\n", int),
     }
 }
 
@@ -78,6 +79,23 @@ mod test {
         for test_case in test_cases {
             assert_eq!(
                 encode_resp_data(RespDataType::SimpleString(test_case.0.into())),
+                test_case.1.to_string()
+            );
+        }
+    }
+
+    #[test]
+    fn test_integer() {
+        let test_cases = vec![
+            (i64::MIN, ":-9223372036854775808\r\n"),
+            (-128, ":-128\r\n"),
+            (0, ":0\r\n"),
+            (128, ":128\r\n"),
+            (i64::MAX, ":9223372036854775807\r\n"),
+        ];
+        for test_case in test_cases {
+            assert_eq!(
+                encode_resp_data(RespDataType::Integer(test_case.0)),
                 test_case.1.to_string()
             );
         }

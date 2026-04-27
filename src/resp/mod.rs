@@ -10,6 +10,7 @@ pub enum RespDataType {
     Error { message: String },
     Nil,
     SimpleString(String),
+    Integer(i64),
 }
 
 // clone the &strs in the slice into an Array of BulkString
