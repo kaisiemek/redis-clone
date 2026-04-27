@@ -1,3 +1,7 @@
+mod generic;
+mod server;
+mod string;
+
 use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow, bail};
@@ -6,7 +10,7 @@ use crate::resp::RespDataType;
 
 #[derive(Debug, PartialEq)]
 pub enum Command {
-    Quit,
+    Shutdown,
     Ping {
         message: Option<String>,
     },
@@ -38,7 +42,7 @@ impl TryFrom<Vec<String>> for Command {
             .ok_or(anyhow!("received an empty command array"))?;
 
         let command = match cmd.as_str() {
-            "quit" => Command::Quit,
+            "shutdown" => Command::Shutdown,
             "ping" => Command::Ping {
                 message: iter.next(),
             },
@@ -120,7 +124,7 @@ mod test {
     #[test]
     fn test_command_parsing() {
         let inputs = vec![
-            vec!["quit"],
+            vec!["shutdown"],
             vec!["ping"],
             vec!["ping", "test"],
             vec!["get", "key"],
@@ -129,7 +133,7 @@ mod test {
             vec!["set", "key", "value", "px", "10"],
         ];
         let expected_results = vec![
-            Command::Quit,
+            Command::Shutdown,
             Command::Ping { message: None },
             Command::Ping {
                 message: Some(String::from("test")),

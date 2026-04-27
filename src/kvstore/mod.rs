@@ -1,12 +1,11 @@
-pub mod command;
-mod string_commands;
+pub mod commands;
 
 use anyhow::Result;
 use std::{collections::HashMap, time::Instant};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
-use crate::{kvstore::command::Command, resp::RespDataType};
+use crate::{kvstore::commands::Command, resp::RespDataType};
 
 #[derive(Debug)]
 pub struct Event {
@@ -71,7 +70,7 @@ impl KVStore {
 
     fn handle_command(&mut self, command: Command) -> Result<RespDataType> {
         let reply = match command {
-            Command::Quit => self.quit(),
+            Command::Shutdown => self.shutdown(),
             Command::Ping { message } => Self::ping(message),
             Command::Set { key, value, expiry } => self.set(key, value, expiry),
             Command::Get { key } => self.get(&key),
@@ -82,22 +81,6 @@ impl KVStore {
     fn send_reply(channel: oneshot::Sender<RespDataType>, data: RespDataType) {
         if channel.send(data).is_err() {
             log::error!("[kvstore] couldn't reply to the event!");
-        }
-    }
-
-    fn ping(message: Option<String>) -> RespDataType {
-        match message {
-            Some(msg) => msg.into(),
-            None => RespDataType::SimpleString {
-                data: String::from("PONG"),
-            },
-        }
-    }
-
-    fn quit(&self) -> RespDataType {
-        self.cancellation_token.cancel();
-        RespDataType::SimpleString {
-            data: String::from("OK"),
         }
     }
 }
