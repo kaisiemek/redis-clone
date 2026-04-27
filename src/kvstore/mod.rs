@@ -73,11 +73,13 @@ impl KVStore {
             Command::Shutdown => self.shutdown(),
             Command::Ping { message } => Self::ping(message),
             Command::Echo { message } => Self::echo(message),
-            Command::Set { key, value, expiry } => self.set(key, value, expiry),
-            Command::Get { key } => self.get(&key),
             Command::Del { keys } => self.del(&keys),
             Command::Ttl { key } => self.ttl(&key),
             Command::Pttl { key } => self.pttl(&key),
+            // string commands
+            Command::Append { key, value } => self.append(key, value),
+            Command::Get { key } => self.get(&key),
+            Command::Set { key, value, expiry } => self.set(key, value, expiry),
         };
         Ok(reply)
     }

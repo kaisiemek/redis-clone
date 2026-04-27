@@ -17,14 +17,6 @@ pub enum Command {
     Echo {
         message: String,
     },
-    Get {
-        key: String,
-    },
-    Set {
-        key: String,
-        value: String,
-        expiry: Option<Instant>,
-    },
     Del {
         keys: Vec<String>,
     },
@@ -33,6 +25,19 @@ pub enum Command {
     },
     Pttl {
         key: String,
+    },
+    // string commands
+    Append {
+        key: String,
+        value: String,
+    },
+    Get {
+        key: String,
+    },
+    Set {
+        key: String,
+        value: String,
+        expiry: Option<Instant>,
     },
 }
 
@@ -61,10 +66,6 @@ impl TryFrom<Vec<String>> for Command {
             "echo" => Command::Echo {
                 message: ensure_next_arg(&mut iter, &cmd)?,
             },
-            "get" => Command::Get {
-                key: ensure_next_arg(&mut iter, &cmd)?,
-            },
-            "set" => parse_set_command(&mut iter)?,
             "del" => parse_del_command(&mut iter)?,
             "ttl" => Command::Ttl {
                 key: ensure_next_arg(&mut iter, &cmd)?,
@@ -72,6 +73,15 @@ impl TryFrom<Vec<String>> for Command {
             "pttl" => Command::Pttl {
                 key: ensure_next_arg(&mut iter, &cmd)?,
             },
+            // string commands
+            "append" => Command::Append {
+                key: ensure_next_arg(&mut iter, &cmd)?,
+                value: ensure_next_arg(&mut iter, &cmd)?,
+            },
+            "get" => Command::Get {
+                key: ensure_next_arg(&mut iter, &cmd)?,
+            },
+            "set" => parse_set_command(&mut iter)?,
             _ => bail!("unknown command '{}'", cmd),
         };
 
@@ -134,18 +144,20 @@ mod test {
     #[test]
     fn test_invalid_command_parsing() {
         let inputs = vec![
+            vec!["unknown-cmd"],
             vec!["shutdown", "arg"],
             vec!["ping", "message", "too many"],
             vec!["echo"],
             vec!["echo", "message", "too many"],
-            vec!["unknown-cmd"],
-            vec!["get", "key", "too many"],
-            vec!["get"],
-            vec!["set"],
             vec!["ttl", "key", "too many"],
             vec!["ttl"],
             vec!["pttl"],
             vec!["del"],
+            vec!["append", "key"],
+            vec!["append", "key", "value", "toomany"],
+            vec!["get", "key", "too many"],
+            vec!["get"],
+            vec!["set"],
             vec!["set", "key"],
             vec!["set", "key", "value", "not-ttl"],
             vec!["set", "key", "value", "ex"],
@@ -165,12 +177,13 @@ mod test {
             vec!["ping"],
             vec!["ping", "test"],
             vec!["echo", "test"],
-            vec!["get", "key"],
-            vec!["set", "key", "value"],
             vec!["ttl", "key"],
             vec!["pttl", "key"],
             vec!["del", "key"],
             vec!["del", "1", "2", "3"],
+            vec!["append", "key", "value"],
+            vec!["get", "key"],
+            vec!["set", "key", "value"],
         ];
         let expected_results = vec![
             Command::Shutdown,
@@ -180,14 +193,6 @@ mod test {
             },
             Command::Echo {
                 message: String::from("test"),
-            },
-            Command::Get {
-                key: String::from("key"),
-            },
-            Command::Set {
-                key: String::from("key"),
-                value: String::from("value"),
-                expiry: None,
             },
             Command::Ttl {
                 key: String::from("key"),
@@ -200,6 +205,18 @@ mod test {
             },
             Command::Del {
                 keys: vec![String::from("1"), String::from("2"), String::from("3")],
+            },
+            Command::Append {
+                key: String::from("key"),
+                value: String::from("value"),
+            },
+            Command::Get {
+                key: String::from("key"),
+            },
+            Command::Set {
+                key: String::from("key"),
+                value: String::from("value"),
+                expiry: None,
             },
         ];
 

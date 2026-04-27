@@ -38,6 +38,12 @@ impl From<String> for RespDataType {
     }
 }
 
+impl From<i64> for RespDataType {
+    fn from(value: i64) -> Self {
+        RespDataType::Integer(value)
+    }
+}
+
 impl From<Option<String>> for RespDataType {
     fn from(value: Option<String>) -> Self {
         match value {
