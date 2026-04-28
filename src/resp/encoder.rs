@@ -1,17 +1,17 @@
-use crate::resp::RespDataType;
+use crate::resp::RespData;
 
-pub fn encode_resp_data(resp_data: RespDataType) -> String {
+pub fn encode_resp_data(resp_data: RespData) -> String {
     match resp_data {
-        RespDataType::Array { data } => encode_array(data),
-        RespDataType::BulkString { data } => format!("${}\r\n{}\r\n", data.len(), data),
-        RespDataType::Error { message } => format!("-{}\r\n", message),
-        RespDataType::Nil => String::from("_\r\n"),
-        RespDataType::SimpleString(string) => format!("+{}\r\n", string),
-        RespDataType::Integer(int) => format!(":{}\r\n", int),
+        RespData::Array { data } => encode_array(data),
+        RespData::BulkString { data } => format!("${}\r\n{}\r\n", data.len(), data),
+        RespData::Error { message } => format!("-{}\r\n", message),
+        RespData::Nil => String::from("_\r\n"),
+        RespData::SimpleString(string) => format!("+{}\r\n", string),
+        RespData::Integer(int) => format!(":{}\r\n", int),
     }
 }
 
-fn encode_array(array: Vec<RespDataType>) -> String {
+fn encode_array(array: Vec<RespData>) -> String {
     let mut string = format!("*{}\r\n", array.len());
     for element in array {
         string.push_str(&encode_resp_data(element));
@@ -28,10 +28,10 @@ mod test {
         let inputs = vec![
             ["test1"].as_slice().into(),
             ["test1", "test2", "test3"].as_slice().into(),
-            RespDataType::Array {
+            RespData::Array {
                 data: vec![["test1", "test2"].as_slice().into()],
             },
-            RespDataType::Array {
+            RespData::Array {
                 data: vec![
                     ["test11", "test12", "test13"].as_slice().into(),
                     ["test21", "test22"].as_slice().into(),
@@ -81,7 +81,7 @@ mod test {
         let test_cases = vec![("simple string", "+simple string\r\n"), ("", "+\r\n")];
         for test_case in test_cases {
             assert_eq!(
-                encode_resp_data(RespDataType::SimpleString(test_case.0.into())),
+                encode_resp_data(RespData::SimpleString(test_case.0.into())),
                 test_case.1.to_string()
             );
         }
@@ -98,7 +98,7 @@ mod test {
         ];
         for test_case in test_cases {
             assert_eq!(
-                encode_resp_data(RespDataType::Integer(test_case.0)),
+                encode_resp_data(RespData::Integer(test_case.0)),
                 test_case.1.to_string()
             );
         }

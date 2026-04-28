@@ -5,12 +5,12 @@ use std::{collections::HashMap, time::Instant};
 use tokio::sync::{mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 
-use crate::{kvstore::commands::Command, resp::RespDataType};
+use crate::{kvstore::commands::Command, resp::RespData};
 
 #[derive(Debug)]
 pub struct Event {
-    pub data: RespDataType,
-    pub reply_channel: oneshot::Sender<RespDataType>,
+    pub data: RespData,
+    pub reply_channel: oneshot::Sender<RespData>,
 }
 pub struct KVStore {
     event_channel: mpsc::UnboundedReceiver<Event>,
@@ -68,7 +68,7 @@ impl KVStore {
         Self::send_reply(event.reply_channel, reply);
     }
 
-    fn handle_command(&mut self, command: Command) -> Result<RespDataType> {
+    fn handle_command(&mut self, command: Command) -> Result<RespData> {
         let reply = match command {
             Command::Shutdown => self.shutdown(),
             Command::Ping { message } => Self::ping(message),
@@ -96,7 +96,7 @@ impl KVStore {
         Ok(reply)
     }
 
-    fn send_reply(channel: oneshot::Sender<RespDataType>, data: RespDataType) {
+    fn send_reply(channel: oneshot::Sender<RespData>, data: RespData) {
         if channel.send(data).is_err() {
             log::error!("[kvstore] couldn't reply to the event!");
         }

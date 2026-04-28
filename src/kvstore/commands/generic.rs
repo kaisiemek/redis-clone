@@ -1,32 +1,32 @@
 use std::time::Instant;
 
-use crate::{kvstore::KVStore, resp::RespDataType};
+use crate::{kvstore::KVStore, resp::RespData};
 
 impl KVStore {
-    pub fn ttl(&mut self, key: &str) -> RespDataType {
+    pub fn ttl(&mut self, key: &str) -> RespData {
         let ttl = self.get_ttl(key);
         if ttl <= 0 {
-            RespDataType::Integer(ttl)
+            RespData::Integer(ttl)
         } else {
-            RespDataType::Integer(ttl / 1000)
+            RespData::Integer(ttl / 1000)
         }
     }
 
-    pub fn pttl(&mut self, key: &str) -> RespDataType {
-        RespDataType::Integer(self.get_ttl(key))
+    pub fn pttl(&mut self, key: &str) -> RespData {
+        RespData::Integer(self.get_ttl(key))
     }
 
-    pub fn del(&mut self, keys: &[String]) -> RespDataType {
+    pub fn del(&mut self, keys: &[String]) -> RespData {
         let mut keys_deleted: i64 = 0;
         for key in keys {
             if self.remove_entry(key) {
                 keys_deleted += 1;
             }
         }
-        RespDataType::Integer(keys_deleted)
+        RespData::Integer(keys_deleted)
     }
 
-    pub fn exists(&self, keys: &[String]) -> RespDataType {
+    pub fn exists(&self, keys: &[String]) -> RespData {
         let mut existing_keys: i64 = 0;
         for key in keys {
             if self.data.contains_key(key) {
@@ -61,3 +61,4 @@ impl KVStore {
         expiry.duration_since(now).as_millis() as i64
     }
 }
+

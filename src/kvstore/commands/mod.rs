@@ -6,7 +6,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow, bail};
 
-use crate::resp::RespDataType;
+use crate::resp::RespData;
 
 #[derive(Debug, PartialEq)]
 pub enum Command {
@@ -83,10 +83,10 @@ pub enum Command {
     },
 }
 
-impl TryFrom<RespDataType> for Command {
+impl TryFrom<RespData> for Command {
     type Error = anyhow::Error;
 
-    fn try_from(respdata: RespDataType) -> Result<Command> {
+    fn try_from(respdata: RespData) -> Result<Command> {
         Vec::try_from(respdata)?.try_into()
     }
 }
@@ -281,7 +281,7 @@ mod test {
             vec!["mset", "key"],
         ];
         for input in inputs {
-            Command::try_from(RespDataType::from(input.as_slice())).unwrap_err();
+            Command::try_from(RespData::from(input.as_slice())).unwrap_err();
         }
     }
 
@@ -372,7 +372,7 @@ mod test {
 
         for (input, expected_result) in inputs.into_iter().zip(expected_results.into_iter()) {
             assert_eq!(
-                Command::try_from(RespDataType::from(input.as_slice())).unwrap(),
+                Command::try_from(RespData::from(input.as_slice())).unwrap(),
                 expected_result
             );
         }
@@ -387,7 +387,7 @@ mod test {
 
         for input in inputs {
             let now = Instant::now();
-            let cmd = Command::try_from(RespDataType::from(input.as_slice())).unwrap();
+            let cmd = Command::try_from(RespData::from(input.as_slice())).unwrap();
             let (key, value, expiry) = match cmd {
                 Command::Set { key, value, expiry } => (key, value, expiry.unwrap()),
                 _ => panic!("expected Set command"),

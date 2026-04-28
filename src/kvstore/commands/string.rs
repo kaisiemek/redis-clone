@@ -2,10 +2,10 @@ use std::time::Instant;
 
 use anyhow::{Result, anyhow, bail};
 
-use crate::{kvstore::KVStore, resp::RespDataType};
+use crate::{kvstore::KVStore, resp::RespData};
 
 impl KVStore {
-    pub fn append(&mut self, key: String, value: String) -> RespDataType {
+    pub fn append(&mut self, key: String, value: String) -> RespData {
         log::debug!("[kvstore] appending string '{}' to key '{}'", value, key);
         let new_size = match self.data.get_mut(&key) {
             Some(val) => {
@@ -19,15 +19,15 @@ impl KVStore {
             }
         } as i64;
 
-        RespDataType::Integer(new_size)
+        RespData::Integer(new_size)
     }
 
-    pub fn decr(&mut self, key: String) -> RespDataType {
+    pub fn decr(&mut self, key: String) -> RespData {
         log::debug!("[kvstore] decrementing integer value '{}'", key);
         self.calc(key, 1, i64::checked_sub).into()
     }
 
-    pub fn decrby(&mut self, key: String, operand: i64) -> RespDataType {
+    pub fn decrby(&mut self, key: String, operand: i64) -> RespData {
         log::debug!(
             "[kvstore] decrementing integer value '{}' by {}",
             key,
@@ -36,7 +36,7 @@ impl KVStore {
         self.calc(key, operand, i64::checked_sub).into()
     }
 
-    pub fn get(&mut self, key: &str) -> RespDataType {
+    pub fn get(&mut self, key: &str) -> RespData {
         log::debug!("[kvstore] accessing key '{}'", key);
         if let Some(expiry) = self.expiries.get(key) {
             if &Instant::now() > expiry {
@@ -47,19 +47,19 @@ impl KVStore {
         self.data.get(key).cloned().into()
     }
 
-    pub fn getset(&mut self, key: String, value: String) -> RespDataType {
+    pub fn getset(&mut self, key: String, value: String) -> RespData {
         let previous = self.get(&key);
         self.expiries.remove(&key);
         self.set(key, value, None);
         previous
     }
 
-    pub fn incr(&mut self, key: String) -> RespDataType {
+    pub fn incr(&mut self, key: String) -> RespData {
         log::debug!("[kvstore] incrementing integer value '{}'", key);
         self.calc(key, 1, i64::checked_add).into()
     }
 
-    pub fn incrby(&mut self, key: String, operand: i64) -> RespDataType {
+    pub fn incrby(&mut self, key: String, operand: i64) -> RespData {
         log::debug!(
             "[kvstore] incrementing integer value '{}' by {}",
             key,
@@ -68,28 +68,28 @@ impl KVStore {
         self.calc(key, operand, i64::checked_add).into()
     }
 
-    pub fn mget(&mut self, keys: Vec<String>) -> RespDataType {
-        RespDataType::Array {
+    pub fn mget(&mut self, keys: Vec<String>) -> RespData {
+        RespData::Array {
             data: keys.iter().map(|key| self.get(key)).collect(),
         }
     }
 
-    pub fn mset(&mut self, keys: Vec<String>, values: Vec<String>) -> RespDataType {
+    pub fn mset(&mut self, keys: Vec<String>, values: Vec<String>) -> RespData {
         for (key, value) in keys.into_iter().zip(values.into_iter()) {
             self.set(key, value, None);
         }
-        RespDataType::SimpleString(String::from("OK"))
+        RespData::SimpleString(String::from("OK"))
     }
 
-    pub fn msetnx(&mut self, keys: Vec<String>, values: Vec<String>) -> RespDataType {
-        if self.exists(&keys) != RespDataType::Integer(0) {
+    pub fn msetnx(&mut self, keys: Vec<String>, values: Vec<String>) -> RespData {
+        if self.exists(&keys) != RespData::Integer(0) {
             return 0.into();
         }
         self.mset(keys, values);
         return 1.into();
     }
 
-    pub fn set(&mut self, key: String, value: String, expiry: Option<Instant>) -> RespDataType {
+    pub fn set(&mut self, key: String, value: String, expiry: Option<Instant>) -> RespData {
         log::debug!("[kvstore] setting '{}' to value '{}'", key, value);
         self.expiries.remove(&key);
         if let Some(expiry) = expiry {
@@ -101,10 +101,10 @@ impl KVStore {
             self.expiries.insert(key.clone(), expiry);
         }
         self.data.insert(key, value);
-        RespDataType::SimpleString(String::from("OK"))
+        RespData::SimpleString(String::from("OK"))
     }
 
-    pub fn setnx(&mut self, key: String, value: String) -> RespDataType {
+    pub fn setnx(&mut self, key: String, value: String) -> RespData {
         if self.data.contains_key(&key) {
             return 0.into();
         }
@@ -113,10 +113,10 @@ impl KVStore {
         1.into()
     }
 
-    pub fn substring(&mut self, key: String, begin: i64, end: i64) -> RespDataType {
+    pub fn substring(&mut self, key: String, begin: i64, end: i64) -> RespData {
         let value = match self.get(&key) {
-            RespDataType::Nil => return "".into(),
-            RespDataType::BulkString { data } => data,
+            RespData::Nil => return "".into(),
+            RespData::BulkString { data } => data,
             _ => {
                 return anyhow!(
                     " WRONGTYPE Operation against a key holding the wrong kind of value"
@@ -179,7 +179,7 @@ mod test {
         assert_eq!(kvstore.get("key"), None::<String>.into());
         assert_eq!(
             kvstore.set("key".into(), "value".into(), None),
-            RespDataType::SimpleString("OK".into())
+            RespData::SimpleString("OK".into())
         );
         assert_eq!(kvstore.get("key"), "value".into());
         assert_eq!(
@@ -196,7 +196,7 @@ mod test {
                 vec!["key1".into(), "key2".into(), "key3".into()],
                 vec!["val1".into(), "val2".into(), "".into()]
             ),
-            RespDataType::SimpleString("OK".into())
+            RespData::SimpleString("OK".into())
         );
         assert_eq!(
             kvstore.exists(&vec!["key1".into(), "key2".into(), "key7".into()]),
@@ -207,7 +207,7 @@ mod test {
             vec![
                 String::from("val1").into(),
                 String::from("val2").into(),
-                RespDataType::Nil
+                RespData::Nil
             ]
             .into()
         );

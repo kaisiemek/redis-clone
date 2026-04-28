@@ -1,6 +1,6 @@
 use anyhow::{Context, Result, ensure};
 
-use crate::resp::RespDataType;
+use crate::resp::RespData;
 
 enum ParserState {
     ReadArrayLength,
@@ -8,7 +8,7 @@ enum ParserState {
     ReadString { length: usize },
 }
 pub struct RespCommandParser {
-    command_fragments: Vec<RespDataType>,
+    command_fragments: Vec<RespData>,
     expected_array_size: usize,
     current_state: ParserState,
 }
@@ -22,7 +22,7 @@ impl RespCommandParser {
         }
     }
 
-    pub fn feed_line(&mut self, line: String) -> Result<Option<RespDataType>> {
+    pub fn feed_line(&mut self, line: String) -> Result<Option<RespData>> {
         let result = self.feed_line_inner(line);
         // reset the parser if the command parsing is complete or an error occurred
         match result {
@@ -32,7 +32,7 @@ impl RespCommandParser {
         result
     }
 
-    fn feed_line_inner(&mut self, mut line: String) -> Result<Option<RespDataType>> {
+    fn feed_line_inner(&mut self, mut line: String) -> Result<Option<RespData>> {
         // remove the line ending
         ensure!(
             line.ends_with("\r\n"),
@@ -48,10 +48,10 @@ impl RespCommandParser {
         }
 
         if self.expected_array_size == 0 {
-            Ok(Some(RespDataType::Array { data: Vec::new() }))
+            Ok(Some(RespData::Array { data: Vec::new() }))
         } else if self.command_fragments.len() == self.expected_array_size {
             let elements = std::mem::take(&mut self.command_fragments);
-            Ok(Some(RespDataType::Array { data: elements }))
+            Ok(Some(RespData::Array { data: elements }))
         } else {
             Ok(None)
         }
@@ -95,7 +95,7 @@ impl RespCommandParser {
             line.len()
         );
         self.command_fragments
-            .push(RespDataType::BulkString { data: line });
+            .push(RespData::BulkString { data: line });
         self.current_state = ParserState::ReadBulkStringLength;
         Ok(())
     }
@@ -147,7 +147,7 @@ mod tests {
             "*0\r\n",
             "*2\r\n$0\r\n\r\n$4\r\ntest\r\n",
         ];
-        let expected_results: Vec<RespDataType> = vec![
+        let expected_results: Vec<RespData> = vec![
             ["test1"].as_slice().into(),
             ["test1", "test2", "test3"].as_slice().into(),
             [].as_slice().into(),

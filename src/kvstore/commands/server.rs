@@ -1,19 +1,19 @@
-use crate::{kvstore::KVStore, resp::RespDataType};
+use crate::{kvstore::KVStore, resp::RespData};
 
 impl KVStore {
-    pub fn ping(message: Option<String>) -> RespDataType {
+    pub fn ping(message: Option<String>) -> RespData {
         match message {
             Some(msg) => Self::echo(msg),
-            None => RespDataType::SimpleString(String::from("OK")),
+            None => RespData::SimpleString(String::from("OK")),
         }
     }
 
-    pub fn echo(message: String) -> RespDataType {
+    pub fn echo(message: String) -> RespData {
         message.into()
     }
 
-    pub fn shutdown(&self) -> RespDataType {
+    pub fn shutdown(&self) -> RespData {
         self.cancellation_token.cancel();
-        RespDataType::SimpleString(String::from("OK"))
+        RespData::SimpleString(String::from("OK"))
     }
 }

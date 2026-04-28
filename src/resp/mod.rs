@@ -4,8 +4,8 @@ pub mod parser;
 use anyhow::{Result, bail};
 
 #[derive(Debug, PartialEq)]
-pub enum RespDataType {
-    Array { data: Vec<RespDataType> },
+pub enum RespData {
+    Array { data: Vec<RespData> },
     BulkString { data: String },
     Error { message: String },
     Nil,
@@ -14,57 +14,57 @@ pub enum RespDataType {
 }
 
 // clone the &strs in the slice into an Array of BulkString
-impl From<&[&str]> for RespDataType {
+impl From<&[&str]> for RespData {
     fn from(value: &[&str]) -> Self {
-        RespDataType::Array {
-            data: value.iter().map(|s| RespDataType::from(*s)).collect(),
+        RespData::Array {
+            data: value.iter().map(|s| RespData::from(*s)).collect(),
         }
     }
 }
 
 // clone the &str data into a BulkString
-impl From<&str> for RespDataType {
+impl From<&str> for RespData {
     fn from(value: &str) -> Self {
-        RespDataType::BulkString {
+        RespData::BulkString {
             data: value.to_string(),
         }
     }
 }
 
 // move the String data into a BulkString
-impl From<String> for RespDataType {
+impl From<String> for RespData {
     fn from(value: String) -> Self {
-        RespDataType::BulkString { data: value }
+        RespData::BulkString { data: value }
     }
 }
 
-impl From<i64> for RespDataType {
+impl From<i64> for RespData {
     fn from(value: i64) -> Self {
-        RespDataType::Integer(value)
+        RespData::Integer(value)
     }
 }
 
-impl<T: Into<RespDataType>> From<Option<T>> for RespDataType {
+impl<T: Into<RespData>> From<Option<T>> for RespData {
     fn from(value: Option<T>) -> Self {
         match value {
             Some(value) => value.into(),
-            None => RespDataType::Nil,
+            None => RespData::Nil,
         }
     }
 }
 
-impl<T: Into<RespDataType>> From<Result<T>> for RespDataType {
+impl<T: Into<RespData>> From<Result<T>> for RespData {
     fn from(value: Result<T>) -> Self {
         match value {
             Ok(value) => value.into(),
-            Err(err) => RespDataType::Error {
+            Err(err) => RespData::Error {
                 message: err.to_string(),
             },
         }
     }
 }
 
-impl<T: Into<RespDataType>> From<Vec<T>> for RespDataType {
+impl<T: Into<RespData>> From<Vec<T>> for RespData {
     fn from(value: Vec<T>) -> Self {
         Self::Array {
             data: value.into_iter().map(|el| el.into()).collect(),
@@ -72,7 +72,7 @@ impl<T: Into<RespDataType>> From<Vec<T>> for RespDataType {
     }
 }
 
-impl From<anyhow::Error> for RespDataType {
+impl From<anyhow::Error> for RespData {
     fn from(value: anyhow::Error) -> Self {
         Self::Error {
             message: value.to_string(),
@@ -80,29 +80,29 @@ impl From<anyhow::Error> for RespDataType {
     }
 }
 
-impl TryFrom<RespDataType> for String {
+impl TryFrom<RespData> for String {
     type Error = anyhow::Error;
 
-    fn try_from(value: RespDataType) -> Result<Self> {
+    fn try_from(value: RespData) -> Result<Self> {
         match value {
-            RespDataType::BulkString { data } => Ok(data),
+            RespData::BulkString { data } => Ok(data),
             other => bail!("can't convert RESP data {:?} to string", other),
         }
     }
 }
 
-impl TryFrom<RespDataType> for Vec<String> {
+impl TryFrom<RespData> for Vec<String> {
     type Error = anyhow::Error;
 
-    fn try_from(value: RespDataType) -> Result<Self> {
+    fn try_from(value: RespData) -> Result<Self> {
         let mut vec = Vec::new();
         match value {
-            RespDataType::Array { data } => {
+            RespData::Array { data } => {
                 for element in data {
                     vec.push(element.try_into()?);
                 }
             }
-            RespDataType::BulkString { data } => {
+            RespData::BulkString { data } => {
                 vec.push(data);
             }
             other => bail!("{:?} can't be converted to a string vector", other),
