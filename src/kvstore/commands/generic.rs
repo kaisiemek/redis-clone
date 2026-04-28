@@ -19,23 +19,24 @@ impl KVStore {
     pub fn del(&mut self, keys: &[String]) -> RespDataType {
         let mut keys_deleted: i64 = 0;
         for key in keys {
-            if self.del_entry(key) {
+            if self.remove_entry(key) {
                 keys_deleted += 1;
             }
         }
         RespDataType::Integer(keys_deleted)
     }
 
-    pub fn del_entry(&mut self, key: &str) -> bool {
-        log::debug!("[kvstore] attempt to delete key '{}'", key);
-        self.expiries.remove(key);
-        let deleted = self.data.remove(key).is_some();
-        if deleted {
-            log::debug!("[kvstore] deleted key '{}'", key);
+    pub fn exists(&self, keys: &[String]) -> RespDataType {
+        let mut existing_keys: i64 = 0;
+        for key in keys {
+            if self.data.contains_key(key) {
+                existing_keys += 1;
+            }
         }
-        deleted
+        existing_keys.into()
     }
 
+    // helper
     fn get_ttl(&mut self, key: &str) -> i64 {
         log::debug!("[kvstore] checking TTL for key '{}'", key);
         // return -2 if the key doesn't exist at all
@@ -53,7 +54,7 @@ impl KVStore {
 
         // delete and return -2 if the TTL has expired
         if expiry < &now {
-            self.del_entry(key);
+            self.remove_entry(key);
             return -2;
         }
 

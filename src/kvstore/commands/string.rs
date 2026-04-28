@@ -41,7 +41,7 @@ impl KVStore {
         if let Some(expiry) = self.expiries.get(key) {
             if &Instant::now() > expiry {
                 log::debug!("[kvstore] key '{}' expired, removing...", key);
-                self.del_entry(key);
+                self.remove_entry(key);
             }
         }
         self.data.get(key).cloned().into()
@@ -92,8 +92,30 @@ impl KVStore {
         self.calc(key, operand, i64::checked_add).into()
     }
 
+    pub fn mget(&mut self, keys: Vec<String>) -> RespDataType {
+        RespDataType::Array {
+            data: keys.iter().map(|key| self.get(key)).collect(),
+        }
+    }
+
+    pub fn mset(&mut self, keys: Vec<String>, values: Vec<String>) -> RespDataType {
+        for (key, value) in keys.into_iter().zip(values.into_iter()) {
+            self.set(key, value, None);
+        }
+        RespDataType::SimpleString(String::from("OK"))
+    }
+
+    pub fn msetnx(&mut self, keys: Vec<String>, values: Vec<String>) -> RespDataType {
+        if self.exists(&keys) != RespDataType::Integer(0) {
+            return 0.into();
+        }
+        self.mset(keys, values);
+        return 1.into();
+    }
+
     pub fn set(&mut self, key: String, value: String, expiry: Option<Instant>) -> RespDataType {
         log::debug!("[kvstore] setting '{}' to value '{}'", key, value);
+        self.expiries.remove(&key);
         if let Some(expiry) = expiry {
             log::debug!(
                 "[kvstore] key '{}' bound to expire in {}ms",
@@ -158,6 +180,41 @@ mod test {
         assert_eq!(
             kvstore.getset("newkey".into(), "value".into()),
             None::<String>.into()
+        );
+
+        assert_eq!(
+            kvstore.mset(
+                vec!["key1".into(), "key2".into(), "key3".into()],
+                vec!["val1".into(), "val2".into(), "".into()]
+            ),
+            RespDataType::SimpleString("OK".into())
+        );
+        assert_eq!(
+            kvstore.exists(&vec!["key1".into(), "key2".into(), "key7".into()]),
+            2.into()
+        );
+        assert_eq!(
+            kvstore.mget(vec!["key1".into(), "key2".into(), "key7".into()]),
+            vec![
+                String::from("val1").into(),
+                String::from("val2").into(),
+                RespDataType::Nil
+            ]
+            .into()
+        );
+        assert_eq!(
+            kvstore.msetnx(
+                vec!["key3".into(), "key4".into(), "key5".into()],
+                vec!["".into(), "".into(), "".into()]
+            ),
+            0.into()
+        );
+        assert_eq!(
+            kvstore.msetnx(
+                vec!["key4".into(), "key5".into(), "key6".into()],
+                vec!["".into(), "".into(), "".into()]
+            ),
+            1.into()
         );
     }
 

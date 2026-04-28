@@ -64,6 +64,14 @@ impl<T: Into<RespDataType>> From<Result<T>> for RespDataType {
     }
 }
 
+impl<T: Into<RespDataType>> From<Vec<T>> for RespDataType {
+    fn from(value: Vec<T>) -> Self {
+        Self::Array {
+            data: value.into_iter().map(|el| el.into()).collect(),
+        }
+    }
+}
+
 impl From<anyhow::Error> for RespDataType {
     fn from(value: anyhow::Error) -> Self {
         Self::Error {

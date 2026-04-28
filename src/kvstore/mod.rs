@@ -73,9 +73,11 @@ impl KVStore {
             Command::Shutdown => self.shutdown(),
             Command::Ping { message } => Self::ping(message),
             Command::Echo { message } => Self::echo(message),
-            Command::Del { keys } => self.del(&keys),
             Command::Ttl { key } => self.ttl(&key),
             Command::Pttl { key } => self.pttl(&key),
+            // generic commands
+            Command::Del { keys } => self.del(&keys),
+            Command::Exists { keys } => self.exists(&keys),
             // string commands
             Command::Append { key, value } => self.append(key, value),
             Command::Decr { key } => self.decr(key),
@@ -85,6 +87,9 @@ impl KVStore {
             Command::GetRange { key, begin, end } => self.getrange(key, begin, end),
             Command::Incr { key } => self.incr(key),
             Command::Incrby { key, operand } => self.incrby(key, operand),
+            Command::Mget { keys } => self.mget(keys),
+            Command::Mset { keys, values } => self.mset(keys, values),
+            Command::Msetnx { keys, values } => self.msetnx(keys, values),
             Command::Set { key, value, expiry } => self.set(key, value, expiry),
         };
         Ok(reply)
@@ -94,5 +99,15 @@ impl KVStore {
         if channel.send(data).is_err() {
             log::error!("[kvstore] couldn't reply to the event!");
         }
+    }
+
+    fn remove_entry(&mut self, key: &str) -> bool {
+        log::debug!("[kvstore] attempt to delete key '{}'", key);
+        self.expiries.remove(key);
+        let deleted = self.data.remove(key).is_some();
+        if deleted {
+            log::debug!("[kvstore] deleted key '{}'", key);
+        }
+        deleted
     }
 }
