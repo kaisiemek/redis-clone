@@ -45,14 +45,9 @@ pub enum Command {
     Get {
         key: String,
     },
-    GetSet {
+    Getset {
         key: String,
         value: String,
-    },
-    GetRange {
-        key: String,
-        begin: i64,
-        end: i64,
     },
     Incr {
         key: String,
@@ -80,6 +75,11 @@ pub enum Command {
     Setnx {
         key: String,
         value: String,
+    },
+    Substring {
+        key: String,
+        begin: i64,
+        end: i64,
     },
 }
 
@@ -138,18 +138,9 @@ impl TryFrom<Vec<String>> for Command {
             "get" => Command::Get {
                 key: ensure_next_arg(&mut iter, &cmd)?,
             },
-            "getset" => Command::GetSet {
+            "getset" => Command::Getset {
                 key: ensure_next_arg(&mut iter, &cmd)?,
                 value: ensure_next_arg(&mut iter, &cmd)?,
-            },
-            "getrange" => Command::GetRange {
-                key: ensure_next_arg(&mut iter, &cmd)?,
-                begin: ensure_next_arg(&mut iter, &cmd)?
-                    .parse()
-                    .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
-                end: ensure_next_arg(&mut iter, &cmd)?
-                    .parse()
-                    .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
             },
             "incr" => Command::Incr {
                 key: ensure_next_arg(&mut iter, &cmd)?,
@@ -175,6 +166,15 @@ impl TryFrom<Vec<String>> for Command {
             "setnx" => Command::Setnx {
                 key: ensure_next_arg(&mut iter, &cmd)?,
                 value: ensure_next_arg(&mut iter, &cmd)?,
+            },
+            "substring" => Command::Substring {
+                key: ensure_next_arg(&mut iter, &cmd)?,
+                begin: ensure_next_arg(&mut iter, &cmd)?
+                    .parse()
+                    .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
+                end: ensure_next_arg(&mut iter, &cmd)?
+                    .parse()
+                    .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
             },
             _ => bail!("ERR unknown command '{}'", cmd),
         };
@@ -300,12 +300,12 @@ mod test {
             vec!["decrby", "key", "10"],
             vec!["get", "key"],
             vec!["getset", "key", "value"],
-            vec!["getrange", "key", "0", "-1"],
             vec!["incrby", "key", "10"],
             vec!["mget", "1", "2"],
             vec!["mset", "k1", "v1", "k2", "v2"],
             vec!["msetnx", "k1", "v1"],
             vec!["set", "key", "value"],
+            vec!["substring", "key", "0", "-1"],
         ];
         let expected_results = vec![
             Command::Shutdown,
@@ -339,14 +339,9 @@ mod test {
             Command::Get {
                 key: String::from("key"),
             },
-            Command::GetSet {
+            Command::Getset {
                 key: String::from("key"),
                 value: String::from("value"),
-            },
-            Command::GetRange {
-                key: String::from("key"),
-                begin: 0,
-                end: -1,
             },
             Command::Incrby {
                 key: String::from("key"),
@@ -367,6 +362,11 @@ mod test {
                 key: String::from("key"),
                 value: String::from("value"),
                 expiry: None,
+            },
+            Command::Substring {
+                key: String::from("key"),
+                begin: 0,
+                end: -1,
             },
         ];
 

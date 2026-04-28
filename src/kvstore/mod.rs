@@ -83,8 +83,7 @@ impl KVStore {
             Command::Decr { key } => self.decr(key),
             Command::Decrby { key, operand } => self.decrby(key, operand),
             Command::Get { key } => self.get(&key),
-            Command::GetSet { key, value } => self.getset(key, value),
-            Command::GetRange { key, begin, end } => self.getrange(key, begin, end),
+            Command::Getset { key, value } => self.getset(key, value),
             Command::Incr { key } => self.incr(key),
             Command::Incrby { key, operand } => self.incrby(key, operand),
             Command::Mget { keys } => self.mget(keys),
@@ -92,6 +91,7 @@ impl KVStore {
             Command::Msetnx { keys, values } => self.msetnx(keys, values),
             Command::Set { key, value, expiry } => self.set(key, value, expiry),
             Command::Setnx { key, value } => self.setnx(key, value),
+            Command::Substring { key, begin, end } => self.substring(key, begin, end),
         };
         Ok(reply)
     }

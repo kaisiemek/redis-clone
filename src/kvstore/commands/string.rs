@@ -54,30 +54,6 @@ impl KVStore {
         previous
     }
 
-    pub fn getrange(&mut self, key: String, begin: i64, end: i64) -> RespDataType {
-        let value = match self.get(&key) {
-            RespDataType::Nil => return "".into(),
-            RespDataType::BulkString { data } => data,
-            _ => {
-                return anyhow!(
-                    " WRONGTYPE Operation against a key holding the wrong kind of value"
-                )
-                .into();
-            }
-        };
-
-        let start_index = Self::fix_index(value.len() as i64, begin);
-        // redis uses inclusive end indeces
-        // i.e. redis: getrange "0123" 0 0 -> "0", rust: "0123"[0..1] -> "0"
-        let mut end_index = Self::fix_index(value.len() as i64, end);
-        end_index = (end_index + 1).clamp(0, value.len());
-
-        if end_index < start_index {
-            return "".into();
-        }
-        value[start_index..end_index].into()
-    }
-
     pub fn incr(&mut self, key: String) -> RespDataType {
         log::debug!("[kvstore] incrementing integer value '{}'", key);
         self.calc(key, 1, i64::checked_add).into()
@@ -135,6 +111,30 @@ impl KVStore {
 
         self.data.insert(key, value);
         1.into()
+    }
+
+    pub fn substring(&mut self, key: String, begin: i64, end: i64) -> RespDataType {
+        let value = match self.get(&key) {
+            RespDataType::Nil => return "".into(),
+            RespDataType::BulkString { data } => data,
+            _ => {
+                return anyhow!(
+                    " WRONGTYPE Operation against a key holding the wrong kind of value"
+                )
+                .into();
+            }
+        };
+
+        let start_index = Self::fix_index(value.len() as i64, begin);
+        // redis uses inclusive end indeces
+        // i.e. redis: getrange "0123" 0 0 -> "0", rust: "0123"[0..1] -> "0"
+        let mut end_index = Self::fix_index(value.len() as i64, end);
+        end_index = (end_index + 1).clamp(0, value.len());
+
+        if end_index < start_index {
+            return "".into();
+        }
+        value[start_index..end_index].into()
     }
 
     // helpers
@@ -292,19 +292,22 @@ mod test {
     }
 
     #[test]
-    fn test_getrange() {
+    fn test_substring() {
         let mut kvstore = KVStore::new(mpsc::unbounded_channel().1, CancellationToken::new());
         kvstore.set("key".into(), "0123456789".into(), None);
-        assert_eq!(kvstore.getrange("key".into(), 0, 0), "0".into());
-        assert_eq!(kvstore.getrange("key".into(), 0, 1), "01".into());
-        assert_eq!(kvstore.getrange("key".into(), 1, 3), "123".into());
-        assert_eq!(kvstore.getrange("key".into(), 0, -1), "0123456789".into());
-        assert_eq!(kvstore.getrange("key".into(), -20, 0), "0".into());
-        assert_eq!(kvstore.getrange("key".into(), -20, -1), "0123456789".into());
-        assert_eq!(kvstore.getrange("key".into(), 20, 21), "".into());
-        assert_eq!(kvstore.getrange("key".into(), 9, 20), "9".into());
-        assert_eq!(kvstore.getrange("key".into(), 9, 9), "9".into());
-        assert_eq!(kvstore.getrange("key".into(), 9, -1), "9".into());
-        assert_eq!(kvstore.getrange("unknown".into(), 0, 0), "".into());
+        assert_eq!(kvstore.substring("key".into(), 0, 0), "0".into());
+        assert_eq!(kvstore.substring("key".into(), 0, 1), "01".into());
+        assert_eq!(kvstore.substring("key".into(), 1, 3), "123".into());
+        assert_eq!(kvstore.substring("key".into(), 0, -1), "0123456789".into());
+        assert_eq!(kvstore.substring("key".into(), -20, 0), "0".into());
+        assert_eq!(
+            kvstore.substring("key".into(), -20, -1),
+            "0123456789".into()
+        );
+        assert_eq!(kvstore.substring("key".into(), 20, 21), "".into());
+        assert_eq!(kvstore.substring("key".into(), 9, 20), "9".into());
+        assert_eq!(kvstore.substring("key".into(), 9, 9), "9".into());
+        assert_eq!(kvstore.substring("key".into(), 9, -1), "9".into());
+        assert_eq!(kvstore.substring("unknown".into(), 0, 0), "".into());
     }
 }
