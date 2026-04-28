@@ -65,8 +65,11 @@ mod test {
     #[test]
     fn test_error() {
         let test_cases = vec![
-            (anyhow::anyhow!("error message"), "-ERR error message\r\n"),
-            (anyhow::anyhow!(""), "-ERR \r\n"),
+            (
+                anyhow::anyhow!("ERR error message"),
+                "-ERR error message\r\n",
+            ),
+            (anyhow::anyhow!(""), "-\r\n"),
         ];
         for test_case in test_cases {
             assert_eq!(encode_resp_data(test_case.0.into()), test_case.1);
