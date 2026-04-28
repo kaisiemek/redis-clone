@@ -4,7 +4,7 @@ pub fn encode_resp_data(resp_data: RespDataType) -> String {
     match resp_data {
         RespDataType::Array { data } => encode_array(data),
         RespDataType::BulkString { data } => format!("${}\r\n{}\r\n", data.len(), data),
-        RespDataType::Error { message } => format!("-ERR {}\r\n", message),
+        RespDataType::Error { message } => format!("-{}\r\n", message),
         RespDataType::Nil => String::from("_\r\n"),
         RespDataType::SimpleString(string) => format!("+{}\r\n", string),
         RespDataType::Integer(int) => format!(":{}\r\n", int),

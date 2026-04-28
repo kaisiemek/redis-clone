@@ -78,7 +78,11 @@ impl KVStore {
             Command::Pttl { key } => self.pttl(&key),
             // string commands
             Command::Append { key, value } => self.append(key, value),
+            Command::Decr { key } => self.decr(key),
+            Command::Decrby { key, operand } => self.decrby(key, operand),
             Command::Get { key } => self.get(&key),
+            Command::Incr { key } => self.incr(key),
+            Command::Incrby { key, operand } => self.incrby(key, operand),
             Command::Set { key, value, expiry } => self.set(key, value, expiry),
         };
         Ok(reply)

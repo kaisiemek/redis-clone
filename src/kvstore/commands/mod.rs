@@ -31,8 +31,22 @@ pub enum Command {
         key: String,
         value: String,
     },
+    Decr {
+        key: String,
+    },
+    Decrby {
+        key: String,
+        operand: i64,
+    },
     Get {
         key: String,
+    },
+    Incr {
+        key: String,
+    },
+    Incrby {
+        key: String,
+        operand: i64,
     },
     Set {
         key: String,
@@ -56,7 +70,7 @@ impl TryFrom<Vec<String>> for Command {
         let mut iter = array.into_iter();
         let cmd = iter
             .next()
-            .ok_or(anyhow!("received an empty command array"))?;
+            .ok_or(anyhow!("ERR received an empty command"))?;
 
         let command = match cmd.as_str() {
             "shutdown" => Command::Shutdown,
@@ -78,15 +92,33 @@ impl TryFrom<Vec<String>> for Command {
                 key: ensure_next_arg(&mut iter, &cmd)?,
                 value: ensure_next_arg(&mut iter, &cmd)?,
             },
+            "decr" => Command::Decr {
+                key: ensure_next_arg(&mut iter, &cmd)?,
+            },
+            "decrby" => Command::Decrby {
+                key: ensure_next_arg(&mut iter, &cmd)?,
+                operand: ensure_next_arg(&mut iter, &cmd)?
+                    .parse()
+                    .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
+            },
             "get" => Command::Get {
                 key: ensure_next_arg(&mut iter, &cmd)?,
             },
+            "incr" => Command::Incr {
+                key: ensure_next_arg(&mut iter, &cmd)?,
+            },
+            "incrby" => Command::Incrby {
+                key: ensure_next_arg(&mut iter, &cmd)?,
+                operand: ensure_next_arg(&mut iter, &cmd)?
+                    .parse()
+                    .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
+            },
             "set" => parse_set_command(&mut iter)?,
-            _ => bail!("unknown command '{}'", cmd),
+            _ => bail!("ERR unknown command '{}'", cmd),
         };
 
         if iter.next().is_some() {
-            bail!("wrong number of arguments for '{}' command", cmd);
+            bail!("ERR wrong number of arguments for '{}' command", cmd);
         }
         Ok(command)
     }
@@ -107,12 +139,12 @@ fn parse_set_command<I: Iterator<Item = String>>(iter: &mut I) -> Result<Command
     };
     let ttl: u64 = ensure_next_arg(iter, "set")?
         .parse()
-        .map_err(|_| anyhow!("syntax error"))?;
+        .map_err(|_| anyhow!("ERR syntax error"))?;
     let expiry = Instant::now()
         + match ttl_option.as_str() {
             "ex" => Duration::from_secs(ttl),
             "px" => Duration::from_millis(ttl),
-            _ => bail!("syntax error"),
+            _ => bail!("ERR syntax error"),
         };
     Ok(Command::Set {
         key,
@@ -125,14 +157,14 @@ fn parse_del_command<I: Iterator<Item = String>>(iter: &mut I) -> Result<Command
     let keys: Vec<String> = iter.collect();
     // need at least one key
     if keys.is_empty() {
-        bail!("wrong number of arguments for 'del' command");
+        bail!("ERR wrong number of arguments for 'del' command");
     }
     Ok(Command::Del { keys })
 }
 
 fn ensure_next_arg<I: Iterator<Item = String>>(iter: &mut I, command: &str) -> Result<String> {
     iter.next().ok_or(anyhow!(
-        "wrong number of arguments for '{}' command",
+        "ERR wrong number of arguments for '{}' command",
         command
     ))
 }
@@ -156,7 +188,9 @@ mod test {
             vec!["append", "key"],
             vec!["append", "key", "value", "toomany"],
             vec!["get", "key", "too many"],
+            vec!["decrby", "key", "xx"],
             vec!["get"],
+            vec!["incrby", "key", "xx"],
             vec!["set"],
             vec!["set", "key"],
             vec!["set", "key", "value", "not-ttl"],
@@ -182,7 +216,9 @@ mod test {
             vec!["del", "key"],
             vec!["del", "1", "2", "3"],
             vec!["append", "key", "value"],
+            vec!["decrby", "key", "10"],
             vec!["get", "key"],
+            vec!["incrby", "key", "10"],
             vec!["set", "key", "value"],
         ];
         let expected_results = vec![
@@ -210,8 +246,16 @@ mod test {
                 key: String::from("key"),
                 value: String::from("value"),
             },
+            Command::Decrby {
+                key: String::from("key"),
+                operand: 10,
+            },
             Command::Get {
                 key: String::from("key"),
+            },
+            Command::Incrby {
+                key: String::from("key"),
+                operand: 10,
             },
             Command::Set {
                 key: String::from("key"),

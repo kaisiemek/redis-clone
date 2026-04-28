@@ -44,11 +44,22 @@ impl From<i64> for RespDataType {
     }
 }
 
-impl From<Option<String>> for RespDataType {
-    fn from(value: Option<String>) -> Self {
+impl<T: Into<RespDataType>> From<Option<T>> for RespDataType {
+    fn from(value: Option<T>) -> Self {
         match value {
-            Some(string) => string.into(),
+            Some(value) => value.into(),
             None => RespDataType::Nil,
+        }
+    }
+}
+
+impl<T: Into<RespDataType>> From<Result<T>> for RespDataType {
+    fn from(value: Result<T>) -> Self {
+        match value {
+            Ok(value) => value.into(),
+            Err(err) => RespDataType::Error {
+                message: err.to_string(),
+            },
         }
     }
 }
