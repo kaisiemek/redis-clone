@@ -77,6 +77,10 @@ pub enum Command {
         value: String,
         expiry: Option<Instant>,
     },
+    Setnx {
+        key: String,
+        value: String,
+    },
 }
 
 impl TryFrom<RespDataType> for Command {
@@ -168,6 +172,10 @@ impl TryFrom<Vec<String>> for Command {
                 Command::Msetnx { keys, values }
             }
             "set" => parse_set_command(&mut iter)?,
+            "setnx" => Command::Setnx {
+                key: ensure_next_arg(&mut iter, &cmd)?,
+                value: ensure_next_arg(&mut iter, &cmd)?,
+            },
             _ => bail!("ERR unknown command '{}'", cmd),
         };
 

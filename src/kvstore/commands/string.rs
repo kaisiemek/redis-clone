@@ -128,6 +128,15 @@ impl KVStore {
         RespDataType::SimpleString(String::from("OK"))
     }
 
+    pub fn setnx(&mut self, key: String, value: String) -> RespDataType {
+        if self.data.contains_key(&key) {
+            return 0.into();
+        }
+
+        self.data.insert(key, value);
+        1.into()
+    }
+
     // helpers
     fn calc(&mut self, key: String, operand: i64, op: fn(i64, i64) -> Option<i64>) -> Result<i64> {
         let previous_value: i64 = match self.data.get(&key) {
@@ -216,6 +225,9 @@ mod test {
             ),
             1.into()
         );
+        assert_eq!(kvstore.setnx("key7".into(), "value7".into()), 1.into());
+        assert_eq!(kvstore.setnx("key7".into(), "value8".into()), 0.into());
+        assert_eq!(kvstore.get("key7"), "value7".into());
     }
 
     #[test]

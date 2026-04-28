@@ -91,6 +91,7 @@ impl KVStore {
             Command::Mset { keys, values } => self.mset(keys, values),
             Command::Msetnx { keys, values } => self.msetnx(keys, values),
             Command::Set { key, value, expiry } => self.set(key, value, expiry),
+            Command::Setnx { key, value } => self.setnx(key, value),
         };
         Ok(reply)
     }
