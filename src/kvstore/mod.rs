@@ -82,6 +82,7 @@ impl KVStore {
             Command::Decrby { key, operand } => self.decrby(key, operand),
             Command::Get { key } => self.get(&key),
             Command::GetSet { key, value } => self.getset(key, value),
+            Command::GetRange { key, begin, end } => self.getrange(key, begin, end),
             Command::Incr { key } => self.incr(key),
             Command::Incrby { key, operand } => self.incrby(key, operand),
             Command::Set { key, value, expiry } => self.set(key, value, expiry),

@@ -45,6 +45,11 @@ pub enum Command {
         key: String,
         value: String,
     },
+    GetRange {
+        key: String,
+        begin: i64,
+        end: i64,
+    },
     Incr {
         key: String,
     },
@@ -111,6 +116,15 @@ impl TryFrom<Vec<String>> for Command {
             "getset" => Command::GetSet {
                 key: ensure_next_arg(&mut iter, &cmd)?,
                 value: ensure_next_arg(&mut iter, &cmd)?,
+            },
+            "getrange" => Command::GetRange {
+                key: ensure_next_arg(&mut iter, &cmd)?,
+                begin: ensure_next_arg(&mut iter, &cmd)?
+                    .parse()
+                    .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
+                end: ensure_next_arg(&mut iter, &cmd)?
+                    .parse()
+                    .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
             },
             "incr" => Command::Incr {
                 key: ensure_next_arg(&mut iter, &cmd)?,
@@ -227,6 +241,7 @@ mod test {
             vec!["decrby", "key", "10"],
             vec!["get", "key"],
             vec!["getset", "key", "value"],
+            vec!["getrange", "key", "0", "-1"],
             vec!["incrby", "key", "10"],
             vec!["set", "key", "value"],
         ];
@@ -265,6 +280,11 @@ mod test {
             Command::GetSet {
                 key: String::from("key"),
                 value: String::from("value"),
+            },
+            Command::GetRange {
+                key: String::from("key"),
+                begin: 0,
+                end: -1,
             },
             Command::Incrby {
                 key: String::from("key"),
