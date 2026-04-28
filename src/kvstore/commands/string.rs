@@ -47,6 +47,13 @@ impl KVStore {
         self.data.get(key).cloned().into()
     }
 
+    pub fn getset(&mut self, key: String, value: String) -> RespDataType {
+        let previous = self.get(&key);
+        self.expiries.remove(&key);
+        self.set(key, value, None);
+        previous
+    }
+
     pub fn incr(&mut self, key: String) -> RespDataType {
         log::debug!("[kvstore] incrementing integer value '{}'", key);
         self.calc(key, 1, i64::checked_add).into()
@@ -111,6 +118,14 @@ mod test {
             RespDataType::SimpleString("OK".into())
         );
         assert_eq!(kvstore.get("key"), "value".into());
+        assert_eq!(
+            kvstore.getset("key".into(), "newvalue".into()),
+            "value".into()
+        );
+        assert_eq!(
+            kvstore.getset("newkey".into(), "value".into()),
+            None::<String>.into()
+        );
     }
 
     #[test]

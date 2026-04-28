@@ -41,6 +41,10 @@ pub enum Command {
     Get {
         key: String,
     },
+    GetSet {
+        key: String,
+        value: String,
+    },
     Incr {
         key: String,
     },
@@ -103,6 +107,10 @@ impl TryFrom<Vec<String>> for Command {
             },
             "get" => Command::Get {
                 key: ensure_next_arg(&mut iter, &cmd)?,
+            },
+            "getset" => Command::GetSet {
+                key: ensure_next_arg(&mut iter, &cmd)?,
+                value: ensure_next_arg(&mut iter, &cmd)?,
             },
             "incr" => Command::Incr {
                 key: ensure_next_arg(&mut iter, &cmd)?,
@@ -218,6 +226,7 @@ mod test {
             vec!["append", "key", "value"],
             vec!["decrby", "key", "10"],
             vec!["get", "key"],
+            vec!["getset", "key", "value"],
             vec!["incrby", "key", "10"],
             vec!["set", "key", "value"],
         ];
@@ -252,6 +261,10 @@ mod test {
             },
             Command::Get {
                 key: String::from("key"),
+            },
+            Command::GetSet {
+                key: String::from("key"),
+                value: String::from("value"),
             },
             Command::Incrby {
                 key: String::from("key"),
