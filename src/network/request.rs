@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 
 use tokio::sync::oneshot;
 
-use crate::resp::{RespData, encoder::encode_resp_data};
+use crate::resp::RespData;
 
 #[derive(Debug)]
 pub struct Request {
@@ -14,7 +14,7 @@ pub struct Request {
 
 impl Request {
     pub fn add_reply(&mut self, reply: RespData) {
-        self.reply_buf = encode_resp_data(reply);
+        self.reply_buf = reply.encode_resp_data();
     }
 
     pub fn send_reply(self) {

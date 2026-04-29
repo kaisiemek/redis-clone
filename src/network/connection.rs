@@ -100,18 +100,18 @@ impl Connection {
     }
 
     async fn produce_reply(&mut self, line: String) -> Result<Option<String>> {
-        let Some(resp_data) = self.parser.feed_line(line)? else {
+        let Some(argv) = self.parser.feed_line(line)? else {
             return Ok(None);
         };
         log::debug!(
             "[connection {}] got RESP data from parser: {:?}",
             self.addr,
-            resp_data
+            argv
         );
         let (sender, receiver) = oneshot::channel();
         self.request_channel.send(Request {
             connection: self.addr,
-            argv: resp_data.try_into()?,
+            argv,
             reply_buf: String::new(),
             reply_channel: sender,
         })?;

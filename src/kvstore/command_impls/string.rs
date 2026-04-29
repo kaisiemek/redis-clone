@@ -38,11 +38,11 @@ impl KVStore {
 
     pub fn get(&mut self, key: &str) -> RespData {
         log::debug!("[kvstore] accessing key '{}'", key);
-        if let Some(expiry) = self.expiries.get(key) {
-            if &Instant::now() > expiry {
-                log::debug!("[kvstore] key '{}' expired, removing...", key);
-                self.remove_entry(key);
-            }
+        if let Some(expiry) = self.expiries.get(key)
+            && &Instant::now() > expiry
+        {
+            log::debug!("[kvstore] key '{}' expired, removing...", key);
+            self.remove_entry(key);
         }
         self.data.get(key).cloned().into()
     }
@@ -69,13 +69,11 @@ impl KVStore {
     }
 
     pub fn mget(&mut self, keys: Vec<String>) -> RespData {
-        RespData::Array {
-            data: keys.iter().map(|key| self.get(key)).collect(),
-        }
+        RespData::Array(keys.iter().map(|key| self.get(key)).collect())
     }
 
     pub fn mset(&mut self, keys: Vec<String>, values: Vec<String>) -> RespData {
-        for (key, value) in keys.into_iter().zip(values.into_iter()) {
+        for (key, value) in keys.into_iter().zip(values) {
             self.set(key, value, None);
         }
         RespData::SimpleString(String::from("OK"))
@@ -86,7 +84,7 @@ impl KVStore {
             return 0.into();
         }
         self.mset(keys, values);
-        return 1.into();
+        1.into()
     }
 
     pub fn set(&mut self, key: String, value: String, expiry: Option<Instant>) -> RespData {
@@ -115,8 +113,8 @@ impl KVStore {
 
     pub fn substring(&mut self, key: String, begin: i64, end: i64) -> RespData {
         let value = match self.get(&key) {
-            RespData::Nil => return "".into(),
-            RespData::BulkString { data } => data,
+            RespData::NullBulkString => return "".into(),
+            RespData::BulkString(string) => string,
             _ => {
                 return anyhow!(
                     " WRONGTYPE Operation against a key holding the wrong kind of value"
@@ -199,7 +197,7 @@ mod test {
             RespData::SimpleString("OK".into())
         );
         assert_eq!(
-            kvstore.exists(&vec!["key1".into(), "key2".into(), "key7".into()]),
+            kvstore.exists(&["key1".into(), "key2".into(), "key7".into()]),
             2.into()
         );
         assert_eq!(
@@ -207,7 +205,7 @@ mod test {
             vec![
                 String::from("val1").into(),
                 String::from("val2").into(),
-                RespData::Nil
+                RespData::NullBulkString
             ]
             .into()
         );

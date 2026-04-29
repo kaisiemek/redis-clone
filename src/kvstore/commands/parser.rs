@@ -2,15 +2,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Result, anyhow, bail};
 
-use crate::{kvstore::commands::Command, resp::RespData};
-
-impl TryFrom<RespData> for Command {
-    type Error = anyhow::Error;
-
-    fn try_from(value: RespData) -> Result<Command> {
-        Vec::try_from(value)?.try_into()
-    }
-}
+use crate::kvstore::commands::Command;
 
 impl TryFrom<Vec<String>> for Command {
     type Error = anyhow::Error;
@@ -177,6 +169,10 @@ fn ensure_key_val_list<I: Iterator<Item = String>>(
 mod test {
     use super::*;
 
+    fn make_argv(argv: Vec<&str>) -> Vec<String> {
+        argv.iter().map(|arg| arg.to_string()).collect()
+    }
+
     #[test]
     fn test_invalid_command_parsing() {
         let inputs = vec![
@@ -206,7 +202,7 @@ mod test {
             vec!["mset", "key"],
         ];
         for input in inputs {
-            Command::try_from(RespData::from(input.as_slice())).unwrap_err();
+            Command::try_from(make_argv(input)).unwrap_err();
         }
     }
 
@@ -295,9 +291,9 @@ mod test {
             },
         ];
 
-        for (input, expected_result) in inputs.into_iter().zip(expected_results.into_iter()) {
+        for (input, expected_result) in inputs.into_iter().zip(expected_results) {
             assert_eq!(
-                Command::try_from(RespData::from(input.as_slice())).unwrap(),
+                Command::try_from(make_argv(input)).unwrap(),
                 expected_result
             );
         }
@@ -312,7 +308,7 @@ mod test {
 
         for input in inputs {
             let now = Instant::now();
-            let cmd = Command::try_from(RespData::from(input.as_slice())).unwrap();
+            let cmd = Command::try_from(make_argv(input)).unwrap();
             let (key, value, expiry) = match cmd {
                 Command::Set { key, value, expiry } => (key, value, expiry.unwrap()),
                 _ => panic!("expected Set command"),

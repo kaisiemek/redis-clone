@@ -1,9 +1,9 @@
 use anyhow::{Context, Result};
 
 enum ParserState {
-    ReadArrayLength,
-    ReadBulkStringLength,
-    ReadString { length: usize },
+    ArrayLength,
+    BulkStringLength,
+    String { length: usize },
 }
 
 pub struct RequestParser {
@@ -17,7 +17,7 @@ impl RequestParser {
         Self {
             argv: Vec::new(),
             argc: 0,
-            current_state: ParserState::ReadArrayLength,
+            current_state: ParserState::ArrayLength,
         }
     }
 
@@ -36,9 +36,9 @@ impl RequestParser {
         line = line.trim_end().to_string();
 
         match self.current_state {
-            ParserState::ReadArrayLength => self.read_array_length(line)?,
-            ParserState::ReadBulkStringLength => self.read_bulk_string_length(line)?,
-            ParserState::ReadString { length } => self.read_bulk_string(line, length)?,
+            ParserState::ArrayLength => self.read_array_length(line)?,
+            ParserState::BulkStringLength => self.read_bulk_string_length(line)?,
+            ParserState::String { length } => self.read_bulk_string(line, length)?,
         }
 
         if self.argc == 0 {
@@ -65,7 +65,7 @@ impl RequestParser {
 
         // just ignore empty arrays and wait for the next one
         if self.argc != 0 {
-            self.current_state = ParserState::ReadBulkStringLength;
+            self.current_state = ParserState::BulkStringLength;
         }
         Ok(())
     }
@@ -79,7 +79,7 @@ impl RequestParser {
             .parse()
             .context("ERR Protocol error: invalid bulkstring length")?;
         println!("======= GOT STR LENGTH: {} ========", string_length);
-        self.current_state = ParserState::ReadString {
+        self.current_state = ParserState::String {
             length: string_length,
         };
         Ok(())
@@ -90,17 +90,16 @@ impl RequestParser {
         // rest if the bulk string is too long
         line.truncate(expected_length);
         self.argv.push(line);
-        self.current_state = ParserState::ReadBulkStringLength;
+        self.current_state = ParserState::BulkStringLength;
         Ok(())
     }
 
     fn read_one_line_command(&mut self, line: String) {
         let mut arg = String::new();
         let mut quoted = false;
-        let mut chars = line.chars().peekable();
 
         // allow whitespace in between quotes
-        while let Some(c) = chars.next() {
+        for c in line.chars() {
             match c {
                 '"' | '\'' => {
                     quoted = !quoted;
@@ -126,7 +125,7 @@ impl RequestParser {
 
     fn reset(&mut self) {
         self.argc = 0;
-        self.current_state = ParserState::ReadArrayLength;
+        self.current_state = ParserState::ArrayLength;
         self.argv.clear();
     }
 }
@@ -159,7 +158,7 @@ mod tests {
         ];
 
         let mut parser = RequestParser::new();
-        for (input, expected) in inputs.into_iter().zip(expected_results.into_iter()) {
+        for (input, expected) in inputs.into_iter().zip(expected_results) {
             let mut output = None;
             for line in input.split_inclusive("\r\n") {
                 output = parser.feed_line(line.to_string()).unwrap();
