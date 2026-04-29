@@ -1,5 +1,4 @@
 pub mod encoder;
-pub mod parser;
 
 use anyhow::{Result, bail};
 

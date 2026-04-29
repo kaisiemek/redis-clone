@@ -9,24 +9,24 @@ use tokio::sync::mpsc;
 use tokio::time::{sleep, timeout};
 use tokio_util::sync::CancellationToken;
 
-use crate::kvstore::{self};
+use crate::network::Request;
 use crate::network::connection::Connection;
 
 const DEFAULT_SERVER_SOCKET: &str = "127.0.0.1:55123";
 
 pub struct Server {
-    event_tx: mpsc::UnboundedSender<kvstore::Event>,
+    req_tx: mpsc::UnboundedSender<Request>,
     cancellation_token: CancellationToken,
     active_connections: Arc<AtomicU8>,
 }
 
 impl Server {
     pub fn new(
-        event_tx: mpsc::UnboundedSender<kvstore::Event>,
+        req_tx: mpsc::UnboundedSender<Request>,
         cancellation_token: CancellationToken,
     ) -> Arc<Self> {
         Arc::new(Server {
-            event_tx,
+            req_tx,
             cancellation_token,
             active_connections: Arc::new(AtomicU8::new(0)),
         })
@@ -71,7 +71,7 @@ impl Server {
                 stream,
                 addr,
                 self.cancellation_token.clone(),
-                self.event_tx.clone(),
+                self.req_tx.clone(),
             )
             .await;
             self.active_connections.fetch_sub(1, Ordering::SeqCst);

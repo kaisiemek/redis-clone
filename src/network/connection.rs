@@ -12,18 +12,15 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use crate::{
-    kvstore::{self, Event},
-    resp::{encoder::encode_resp_data, parser::RespCommandParser},
-};
+use crate::network::{Request, req_parser::RequestParser};
 
 pub struct Connection {
     reader: BufReader<OwnedReadHalf>,
     writer: OwnedWriteHalf,
     addr: SocketAddr,
     cancellation_token: CancellationToken,
-    event_channel: mpsc::UnboundedSender<Event>,
-    parser: RespCommandParser,
+    request_channel: mpsc::UnboundedSender<Request>,
+    parser: RequestParser,
     linebuf: Vec<u8>,
 }
 
@@ -32,7 +29,7 @@ impl Connection {
         stream: TcpStream,
         addr: SocketAddr,
         cancellation_token: CancellationToken,
-        event_channel: mpsc::UnboundedSender<Event>,
+        request_channel: mpsc::UnboundedSender<Request>,
     ) -> Self {
         let (reader, writer) = stream.into_split();
         Self {
@@ -40,8 +37,8 @@ impl Connection {
             writer,
             addr,
             cancellation_token,
-            event_channel,
-            parser: RespCommandParser::new(),
+            request_channel,
+            parser: RequestParser::new(),
             linebuf: Vec::new(),
         }
     }
@@ -50,10 +47,10 @@ impl Connection {
         stream: TcpStream,
         addr: SocketAddr,
         cancellation_token: CancellationToken,
-        event_channel: mpsc::UnboundedSender<Event>,
+        request_channel: mpsc::UnboundedSender<Request>,
     ) {
         log::info!("[connection {}] established", addr);
-        let mut connection = Self::new(stream, addr, cancellation_token, event_channel);
+        let mut connection = Self::new(stream, addr, cancellation_token, request_channel);
         match connection.main_loop().await {
             Ok(_) => log::info!("[connection {}] ended", addr),
             Err(err) => log::error!("[connection {}] ended, {}", addr, err),
@@ -112,11 +109,13 @@ impl Connection {
             resp_data
         );
         let (sender, receiver) = oneshot::channel();
-        self.event_channel.send(kvstore::Event {
+        self.request_channel.send(Request {
+            connection: self.addr,
+            argv: resp_data.try_into()?,
+            reply_buf: String::new(),
             reply_channel: sender,
-            data: resp_data,
         })?;
         let kvstore_reply = timeout(Duration::from_millis(500), receiver).await??;
-        Ok(Some(encode_resp_data(kvstore_reply)))
+        Ok(Some(kvstore_reply))
     }
 }

@@ -1,19 +1,18 @@
+mod command_impls;
 pub mod commands;
 
 use anyhow::Result;
 use std::{collections::HashMap, time::Instant};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use crate::{kvstore::commands::Command, resp::RespData};
-
-#[derive(Debug)]
-pub struct Event {
-    pub data: RespData,
-    pub reply_channel: oneshot::Sender<RespData>,
-}
+use crate::{
+    kvstore::commands::{Command, parser::parse_command},
+    network,
+    resp::RespData,
+};
 pub struct KVStore {
-    event_channel: mpsc::UnboundedReceiver<Event>,
+    request_channel: mpsc::UnboundedReceiver<network::Request>,
     cancellation_token: CancellationToken,
     data: HashMap<String, String>,
     expiries: HashMap<String, Instant>,
@@ -21,11 +20,11 @@ pub struct KVStore {
 
 impl KVStore {
     pub fn new(
-        event_channel: mpsc::UnboundedReceiver<Event>,
+        request_channel: mpsc::UnboundedReceiver<network::Request>,
         cancellation_token: CancellationToken,
     ) -> Self {
         KVStore {
-            event_channel,
+            request_channel,
             cancellation_token,
             data: HashMap::new(),
             expiries: HashMap::new(),
@@ -36,8 +35,8 @@ impl KVStore {
         log::info!("[kvstore] running event loop");
         loop {
             tokio::select! {
-                Some(event) = self.event_channel.recv() => {
-                    self.handle_event(event);
+                Some(request) = self.request_channel.recv() => {
+                    self.handle_request(request);
                 }
                 _ = self.cancellation_token.cancelled() => {
                         break;
@@ -48,13 +47,14 @@ impl KVStore {
         Ok(())
     }
 
-    fn handle_event(&mut self, event: Event) {
-        log::debug!("[kvstore] handling event data {:?}", event.data);
-
-        let command: Command = match Command::try_from(event.data) {
+    fn handle_request(&mut self, mut req: network::Request) {
+        log::debug!("[kvstore] handling request data {:?}", req.argv);
+        let argv = std::mem::take(&mut req.argv);
+        let command: Command = match parse_command(argv) {
             Ok(cmd) => cmd,
             Err(err) => {
-                Self::send_reply(event.reply_channel, err.into());
+                req.add_reply(err.into());
+                req.send_reply();
                 return;
             }
         };
@@ -65,7 +65,8 @@ impl KVStore {
             Err(err) => err.into(),
         };
         log::debug!("[kvstore] sending reply: {:?}", reply);
-        Self::send_reply(event.reply_channel, reply);
+        req.add_reply(reply);
+        req.send_reply();
     }
 
     fn handle_command(&mut self, command: Command) -> Result<RespData> {
@@ -94,12 +95,6 @@ impl KVStore {
             Command::Substring { key, begin, end } => self.substring(key, begin, end),
         };
         Ok(reply)
-    }
-
-    fn send_reply(channel: oneshot::Sender<RespData>, data: RespData) {
-        if channel.send(data).is_err() {
-            log::error!("[kvstore] couldn't reply to the event!");
-        }
     }
 
     fn remove_entry(&mut self, key: &str) -> bool {
