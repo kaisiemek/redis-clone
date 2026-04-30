@@ -82,15 +82,7 @@ impl KVStore {
             Err(err) => return err.into(),
         };
 
-        let start_index = Self::fix_index(string.len() as i64, begin);
-        // redis uses inclusive end indeces
-        // i.e. redis: getrange "0123" 0 0 -> "0", rust: "0123"[0..1] -> "0"
-        let mut end_index = Self::fix_index(string.len() as i64, end);
-        end_index = (end_index + 1).clamp(0, string.len());
-
-        if end_index < start_index {
-            return "".into();
-        }
+        let (start_index, end_index) = Self::fix_index_range(string.len(), begin, end);
         string[start_index..end_index].into()
     }
 
@@ -131,15 +123,6 @@ impl KVStore {
 
         self.insert(key, new_value);
         Ok(new_value)
-    }
-
-    fn fix_index(len: i64, mut index: i64) -> usize {
-        // redis can use negative indeces like Python, Rust slicing doesn't allow that
-        if index < 0 {
-            index += len;
-        }
-
-        index.clamp(0, len) as usize
     }
 }
 

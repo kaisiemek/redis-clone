@@ -1,11 +1,13 @@
+mod generic;
+mod helpers;
+mod list;
+mod server;
+mod string;
+
 use crate::{
     kvstore::{KVStore, commands::Command},
     resp::RespData,
 };
-
-mod generic;
-mod server;
-mod string;
 
 impl KVStore {
     pub fn handle_command(&mut self, command: Command) -> RespData {
@@ -33,6 +35,9 @@ impl KVStore {
             Command::Set { key, value } => self.set(key, value),
             Command::Setnx { key, value } => self.setnx(key, value),
             Command::Substring { key, begin, end } => self.substring(key, begin, end),
+            // line commands
+            Command::Lpush { key, values } => self.lpush(key, values),
+            Command::Lrange { key, begin, end } => self.lrange(key, begin, end),
         }
     }
 }

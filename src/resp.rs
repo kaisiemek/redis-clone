@@ -15,10 +15,12 @@ use anyhow::Result;
 * rust types:
 *  &str/String      -> bulk string
 *  i64              -> integer
+*  bool             -> integer (1 = true, 0 = false)
 *  Option<T>'s None -> null bulk string
 *  Result<T>'s Err  -> simple error
 *  anyhow::Error    -> simple error
 *  Vec<T>           -> array
+*  &[T]             -> array
 * */
 #[derive(Debug, PartialEq)]
 pub enum RespData {
@@ -99,6 +101,18 @@ impl<T: Into<RespData>> From<Result<T>> for RespData {
 impl<T: Into<RespData>> From<Vec<T>> for RespData {
     fn from(value: Vec<T>) -> Self {
         Self::Array(value.into_iter().map(|element| element.into()).collect())
+    }
+}
+
+impl<T: Into<RespData> + Clone> From<&[T]> for RespData {
+    fn from(value: &[T]) -> Self {
+        Self::Array(
+            value
+                .iter()
+                .cloned()
+                .map(|element| element.into())
+                .collect(),
+        )
     }
 }
 

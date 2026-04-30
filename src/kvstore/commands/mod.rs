@@ -72,4 +72,14 @@ pub enum Command {
         begin: i64,
         end: i64,
     },
+    // list commands
+    Lpush {
+        key: String,
+        values: Vec<String>,
+    },
+    Lrange {
+        key: String,
+        begin: i64,
+        end: i64,
+    },
 }

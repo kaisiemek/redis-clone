@@ -32,10 +32,10 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
         },
         // generic commands
         "del" => Command::Del {
-            keys: ensure_key_list(&mut iter, &cmd)?,
+            keys: ensure_arg_list(&mut iter, &cmd)?,
         },
         "exists" => Command::Exists {
-            keys: ensure_key_list(&mut iter, &cmd)?,
+            keys: ensure_arg_list(&mut iter, &cmd)?,
         },
         "expire" => Command::Expire {
             key: ensure_next_arg(&mut iter, &cmd)?,
@@ -64,7 +64,7 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
             operand: ensure_integer_arg(&mut iter, &cmd)?,
         },
         "mget" => Command::Mget {
-            keys: ensure_key_list(&mut iter, &cmd)?,
+            keys: ensure_arg_list(&mut iter, &cmd)?,
         },
         "mset" => {
             let (keys, values) = ensure_key_val_list(&mut iter, &cmd)?;
@@ -83,6 +83,16 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
             value: ensure_next_arg(&mut iter, &cmd)?,
         },
         "substring" => Command::Substring {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+            begin: ensure_integer_arg(&mut iter, &cmd)?,
+            end: ensure_integer_arg(&mut iter, &cmd)?,
+        },
+        // list operations
+        "lpush" => Command::Lpush {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+            values: ensure_arg_list(&mut iter, &cmd)?,
+        },
+        "lrange" => Command::Lrange {
             key: ensure_next_arg(&mut iter, &cmd)?,
             begin: ensure_integer_arg(&mut iter, &cmd)?,
             end: ensure_integer_arg(&mut iter, &cmd)?,
@@ -109,7 +119,7 @@ fn ensure_integer_arg<I: Iterator<Item = String>>(iter: &mut I, command: &str) -
         .map_err(|_| anyhow!("ERR value is not an integer or out of range"))
 }
 
-fn ensure_key_list<I: Iterator<Item = String>>(iter: &mut I, command: &str) -> Result<Vec<String>> {
+fn ensure_arg_list<I: Iterator<Item = String>>(iter: &mut I, command: &str) -> Result<Vec<String>> {
     let args: Vec<String> = iter.collect();
     // need at least one key
     if args.is_empty() {

@@ -78,7 +78,6 @@ impl RequestParser {
         let string_length: usize = line[1..]
             .parse()
             .context("ERR Protocol error: invalid bulkstring length")?;
-        println!("======= GOT STR LENGTH: {} ========", string_length);
         self.current_state = ParserState::String {
             length: string_length,
         };
