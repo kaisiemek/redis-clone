@@ -169,7 +169,6 @@ mod test {
             ]
             .into()
         );
-        println!("============= 1");
         assert_eq!(
             kvstore.msetnx(
                 vec!["key3".into(), "key4".into(), "key5".into()],
@@ -177,7 +176,6 @@ mod test {
             ),
             0.into()
         );
-        println!("============= 2");
         assert_eq!(
             kvstore.msetnx(
                 vec!["key4".into(), "key5".into(), "key6".into()],
@@ -185,9 +183,7 @@ mod test {
             ),
             1.into()
         );
-        println!("============= 3");
         assert_eq!(kvstore.setnx("key7".into(), "value7".into()), 1.into());
-        println!("============= 4");
         assert_eq!(kvstore.setnx("key7".into(), "value8".into()), 0.into());
         assert_eq!(kvstore.gets("key7".into()), "value7".into());
     }
