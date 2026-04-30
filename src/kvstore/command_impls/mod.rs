@@ -36,6 +36,9 @@ impl KVStore {
             Command::Setnx { key, value } => self.setnx(key, value),
             Command::Substring { key, begin, end } => self.substring(key, begin, end),
             // line commands
+            Command::Lindex { key, index } => self.lindex(key, index),
+            Command::Llen { key } => self.llen(key),
+            Command::Lpop { key } => self.lpop(key),
             Command::Lpush { key, values } => self.lpush(key, values),
             Command::Lrange { key, begin, end } => self.lrange(key, begin, end),
         }

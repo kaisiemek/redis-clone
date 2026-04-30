@@ -73,6 +73,16 @@ pub enum Command {
         end: i64,
     },
     // list commands
+    Lindex {
+        key: String,
+        index: i64,
+    },
+    Llen {
+        key: String,
+    },
+    Lpop {
+        key: String,
+    },
     Lpush {
         key: String,
         values: Vec<String>,

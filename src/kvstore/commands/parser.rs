@@ -88,6 +88,16 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
             end: ensure_integer_arg(&mut iter, &cmd)?,
         },
         // list operations
+        "lindex" => Command::Lindex {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+            index: ensure_integer_arg(&mut iter, &cmd)?,
+        },
+        "llen" => Command::Llen {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+        },
+        "lpop" => Command::Lpop {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+        },
         "lpush" => Command::Lpush {
             key: ensure_next_arg(&mut iter, &cmd)?,
             values: ensure_arg_list(&mut iter, &cmd)?,
