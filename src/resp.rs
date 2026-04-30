@@ -72,6 +72,12 @@ impl From<i64> for RespData {
     }
 }
 
+impl From<bool> for RespData {
+    fn from(value: bool) -> Self {
+        if value { 1.into() } else { 0.into() }
+    }
+}
+
 impl<T: Into<RespData>> From<Option<T>> for RespData {
     fn from(value: Option<T>) -> Self {
         match value {

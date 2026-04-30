@@ -1,5 +1,3 @@
-use std::time::{Duration, Instant};
-
 use anyhow::{Result, anyhow, bail};
 
 use crate::kvstore::commands::Command;
@@ -39,19 +37,17 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
         "exists" => Command::Exists {
             keys: ensure_key_list(&mut iter, &cmd)?,
         },
-        // string commands
-        "append" => Command::Append {
+        "expire" => Command::Expire {
             key: ensure_next_arg(&mut iter, &cmd)?,
-            value: ensure_next_arg(&mut iter, &cmd)?,
+            ttl: ensure_integer_arg(&mut iter, &cmd)?,
         },
+        // string commands
         "decr" => Command::Decr {
             key: ensure_next_arg(&mut iter, &cmd)?,
         },
         "decrby" => Command::Decrby {
             key: ensure_next_arg(&mut iter, &cmd)?,
-            operand: ensure_next_arg(&mut iter, &cmd)?
-                .parse()
-                .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
+            operand: ensure_integer_arg(&mut iter, &cmd)?,
         },
         "get" => Command::Get {
             key: ensure_next_arg(&mut iter, &cmd)?,
@@ -65,9 +61,7 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
         },
         "incrby" => Command::Incrby {
             key: ensure_next_arg(&mut iter, &cmd)?,
-            operand: ensure_next_arg(&mut iter, &cmd)?
-                .parse()
-                .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
+            operand: ensure_integer_arg(&mut iter, &cmd)?,
         },
         "mget" => Command::Mget {
             keys: ensure_key_list(&mut iter, &cmd)?,
@@ -80,19 +74,18 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
             let (keys, values) = ensure_key_val_list(&mut iter, &cmd)?;
             Command::Msetnx { keys, values }
         }
-        "set" => parse_set_command(&mut iter)?,
+        "set" => Command::Set {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+            value: ensure_next_arg(&mut iter, &cmd)?,
+        },
         "setnx" => Command::Setnx {
             key: ensure_next_arg(&mut iter, &cmd)?,
             value: ensure_next_arg(&mut iter, &cmd)?,
         },
         "substring" => Command::Substring {
             key: ensure_next_arg(&mut iter, &cmd)?,
-            begin: ensure_next_arg(&mut iter, &cmd)?
-                .parse()
-                .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
-            end: ensure_next_arg(&mut iter, &cmd)?
-                .parse()
-                .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
+            begin: ensure_integer_arg(&mut iter, &cmd)?,
+            end: ensure_integer_arg(&mut iter, &cmd)?,
         },
         _ => bail!("ERR unknown command '{}'", cmd),
     };
@@ -103,40 +96,17 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
     Ok(command)
 }
 
-fn parse_set_command<I: Iterator<Item = String>>(iter: &mut I) -> Result<Command> {
-    let key = ensure_next_arg(iter, "set")?;
-    let value = ensure_next_arg(iter, "set")?;
-    let ttl_option = match iter.next() {
-        Some(ttl_option) => ttl_option.to_ascii_lowercase(),
-        None => {
-            return Ok(Command::Set {
-                key,
-                value,
-                expiry: None,
-            });
-        }
-    };
-    let ttl: u64 = ensure_next_arg(iter, "set")?
-        .parse()
-        .map_err(|_| anyhow!("ERR syntax error"))?;
-    let expiry = Instant::now()
-        + match ttl_option.as_str() {
-            "ex" => Duration::from_secs(ttl),
-            "px" => Duration::from_millis(ttl),
-            _ => bail!("ERR syntax error"),
-        };
-    Ok(Command::Set {
-        key,
-        value,
-        expiry: Some(expiry),
-    })
-}
-
 fn ensure_next_arg<I: Iterator<Item = String>>(iter: &mut I, command: &str) -> Result<String> {
     iter.next().ok_or(anyhow!(
         "ERR wrong number of arguments for '{}' command",
         command
     ))
+}
+
+fn ensure_integer_arg<I: Iterator<Item = String>>(iter: &mut I, command: &str) -> Result<i64> {
+    ensure_next_arg(iter, command)?
+        .parse()
+        .map_err(|_| anyhow!("ERR value is not an integer or out of range"))
 }
 
 fn ensure_key_list<I: Iterator<Item = String>>(iter: &mut I, command: &str) -> Result<Vec<String>> {
@@ -185,19 +155,13 @@ mod test {
             vec!["ttl"],
             vec!["pttl"],
             vec!["del"],
-            vec!["append", "key"],
-            vec!["append", "key", "value", "toomany"],
             vec!["get", "key", "too many"],
             vec!["decrby", "key", "xx"],
             vec!["get"],
             vec!["incrby", "key", "xx"],
             vec!["set"],
             vec!["set", "key"],
-            vec!["set", "key", "value", "not-ttl"],
-            vec!["set", "key", "value", "ex"],
-            vec!["set", "key", "value", "ex", "-10"],
-            vec!["set", "key", "value", "ex", "NaN"],
-            vec!["set", "key", "value", "px", "NaN"],
+            vec!["set", "key", "value", "too many"],
             vec!["mset", "key", "value", "key1"],
             vec!["mset", "key"],
         ];
@@ -217,7 +181,6 @@ mod test {
             vec!["pttl", "key"],
             vec!["del", "key"],
             vec!["del", "1", "2", "3"],
-            vec!["append", "key", "value"],
             vec!["decrby", "key", "10"],
             vec!["get", "key"],
             vec!["getset", "key", "value"],
@@ -249,10 +212,6 @@ mod test {
             Command::Del {
                 keys: vec![String::from("1"), String::from("2"), String::from("3")],
             },
-            Command::Append {
-                key: String::from("key"),
-                value: String::from("value"),
-            },
             Command::Decrby {
                 key: String::from("key"),
                 operand: 10,
@@ -282,7 +241,6 @@ mod test {
             Command::Set {
                 key: String::from("key"),
                 value: String::from("value"),
-                expiry: None,
             },
             Command::Substring {
                 key: String::from("key"),
@@ -295,31 +253,6 @@ mod test {
             assert_eq!(
                 Command::try_from(make_argv(input)).unwrap(),
                 expected_result
-            );
-        }
-    }
-
-    #[test]
-    fn test_ttl() {
-        let inputs = vec![
-            vec!["set", "key", "value", "ex", "1"],
-            vec!["set", "key", "value", "px", "1000"],
-        ];
-
-        for input in inputs {
-            let now = Instant::now();
-            let cmd = Command::try_from(make_argv(input)).unwrap();
-            let (key, value, expiry) = match cmd {
-                Command::Set { key, value, expiry } => (key, value, expiry.unwrap()),
-                _ => panic!("expected Set command"),
-            };
-
-            assert_eq!(key, "key");
-            assert_eq!(value, "value");
-            // add 1ms of tolerance for test execution/parsing times
-            assert!(
-                expiry.duration_since(now).abs_diff(Duration::from_secs(1))
-                    < Duration::from_millis(1)
             );
         }
     }

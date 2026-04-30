@@ -1,158 +1,135 @@
-use std::time::Instant;
-
 use anyhow::{Result, anyhow, bail};
 
-use crate::{kvstore::KVStore, resp::RespData};
+use crate::{
+    kvstore::{KVStore, KVStoreValue},
+    resp::RespData,
+};
 
 impl KVStore {
-    pub fn append(&mut self, key: String, value: String) -> RespData {
-        log::debug!("[kvstore] appending string '{}' to key '{}'", value, key);
-        let new_size = match self.data.get_mut(&key) {
-            Some(val) => {
-                val.push_str(&value);
-                val.len()
-            }
-            None => {
-                let new_size = value.len();
-                self.data.insert(key, value);
-                new_size
-            }
-        } as i64;
-
-        new_size.into()
-    }
-
     pub fn decr(&mut self, key: String) -> RespData {
-        log::debug!("[kvstore] decrementing integer value '{}'", key);
         self.calc(key, 1, i64::checked_sub).into()
     }
 
     pub fn decrby(&mut self, key: String, operand: i64) -> RespData {
-        log::debug!(
-            "[kvstore] decrementing integer value '{}' by {}",
-            key,
-            operand
-        );
         self.calc(key, operand, i64::checked_sub).into()
     }
 
-    pub fn get(&mut self, key: &str) -> RespData {
-        log::debug!("[kvstore] accessing key '{}'", key);
-        if let Some(expiry) = self.expiries.get(key)
-            && &Instant::now() > expiry
-        {
-            log::debug!("[kvstore] key '{}' expired, removing...", key);
-            self.remove_entry(key);
-        }
-        self.data.get(key).cloned().into()
+    pub fn gets(&mut self, key: String) -> RespData {
+        self.get_string(&key).into()
     }
 
     pub fn getset(&mut self, key: String, value: String) -> RespData {
-        let previous = self.get(&key);
-        self.expiries.remove(&key);
-        self.set(key, value, None);
-        previous
+        let previous = match self.get_string(&key) {
+            Ok(prev) => prev,
+            Err(err) => return err.into(),
+        };
+        self.set(key, value);
+        previous.into()
     }
 
     pub fn incr(&mut self, key: String) -> RespData {
-        log::debug!("[kvstore] incrementing integer value '{}'", key);
         self.calc(key, 1, i64::checked_add).into()
     }
 
     pub fn incrby(&mut self, key: String, operand: i64) -> RespData {
-        log::debug!(
-            "[kvstore] incrementing integer value '{}' by {}",
-            key,
-            operand
-        );
         self.calc(key, operand, i64::checked_add).into()
     }
 
     pub fn mget(&mut self, keys: Vec<String>) -> RespData {
-        keys.iter()
-            .map(|key| self.get(key))
-            .collect::<Vec<_>>()
+        keys.into_iter()
+            .map(|key| self.get_string_or_nil(&key).into())
+            .collect::<Vec<RespData>>()
             .into()
     }
 
     pub fn mset(&mut self, keys: Vec<String>, values: Vec<String>) -> RespData {
         for (key, value) in keys.into_iter().zip(values) {
-            self.set(key, value, None);
+            self.set(key, value);
         }
         RespData::ok()
     }
 
     pub fn msetnx(&mut self, keys: Vec<String>, values: Vec<String>) -> RespData {
-        if self.exists(&keys) != RespData::Integer(0) {
-            return 0.into();
+        for key in keys.iter() {
+            if self.contains(key) {
+                return false.into();
+            }
         }
         self.mset(keys, values);
-        1.into()
+        true.into()
     }
 
-    pub fn set(&mut self, key: String, value: String, expiry: Option<Instant>) -> RespData {
-        log::debug!("[kvstore] setting '{}' to value '{}'", key, value);
+    pub fn set(&mut self, key: String, value: String) -> RespData {
         self.expiries.remove(&key);
-        if let Some(expiry) = expiry {
-            log::debug!(
-                "[kvstore] key '{}' bound to expire in {}ms",
-                key,
-                expiry.duration_since(Instant::now()).as_millis()
-            );
-            self.expiries.insert(key.clone(), expiry);
-        }
-        self.data.insert(key, value);
+        self.insert(key, value);
         RespData::ok()
     }
 
     pub fn setnx(&mut self, key: String, value: String) -> RespData {
-        if self.data.contains_key(&key) {
-            return 0.into();
+        if self.contains(&key) {
+            return false.into();
         }
-
-        self.data.insert(key, value);
-        1.into()
+        self.expiries.remove(&key);
+        self.insert(key, value);
+        true.into()
     }
 
     pub fn substring(&mut self, key: String, begin: i64, end: i64) -> RespData {
-        let value = match self.get(&key) {
-            RespData::NullBulkString => return "".into(),
-            RespData::BulkString(string) => string,
-            _ => {
-                return anyhow!(
-                    " WRONGTYPE Operation against a key holding the wrong kind of value"
-                )
-                .into();
-            }
+        let string = match self.get_string(&key) {
+            Ok(Some(string)) => string,
+            // redis just returns an empty string for keys that don't exist
+            Ok(None) => return "".into(),
+            Err(err) => return err.into(),
         };
 
-        let start_index = Self::fix_index(value.len() as i64, begin);
+        let start_index = Self::fix_index(string.len() as i64, begin);
         // redis uses inclusive end indeces
         // i.e. redis: getrange "0123" 0 0 -> "0", rust: "0123"[0..1] -> "0"
-        let mut end_index = Self::fix_index(value.len() as i64, end);
-        end_index = (end_index + 1).clamp(0, value.len());
+        let mut end_index = Self::fix_index(string.len() as i64, end);
+        end_index = (end_index + 1).clamp(0, string.len());
 
         if end_index < start_index {
             return "".into();
         }
-        value[start_index..end_index].into()
+        string[start_index..end_index].into()
     }
 
     // helpers
+    fn get_string(&mut self, key: &str) -> Result<Option<String>> {
+        let val = match self.get(key) {
+            Some(val) => val,
+            None => return Ok(None),
+        };
+        match val {
+            KVStoreValue::String(string) => Ok(Some(string.clone())),
+            _ => {
+                bail!("WRONGTYPE Operation against a key holding the wrong kind of value")
+            }
+        }
+    }
+
+    fn get_string_or_nil(&mut self, key: &str) -> Option<&str> {
+        if let Some(KVStoreValue::String(s)) = self.get(key) {
+            Some(s.as_str())
+        } else {
+            None
+        }
+    }
+
     fn calc(&mut self, key: String, operand: i64, op: fn(i64, i64) -> Option<i64>) -> Result<i64> {
-        let previous_value: i64 = match self.data.get(&key) {
+        let prev_val: i64 = match self.get_string(&key)? {
             Some(val) => val
                 .parse()
                 .map_err(|_| anyhow!("ERR value is not an integer or out of range"))?,
             None => 0,
         };
 
-        let new_value = match op(previous_value, operand) {
+        let new_value = match op(prev_val, operand) {
             Some(new_value) => new_value,
             None => bail!("ERR increment or decrement would overflow"),
         };
 
-        self.data.insert(key, format!("{}", new_value));
+        self.insert(key, new_value);
         Ok(new_value)
     }
 
@@ -177,12 +154,9 @@ mod test {
     fn test_get_set() {
         let mut kvstore = KVStore::new(mpsc::unbounded_channel().1, CancellationToken::new());
 
-        assert_eq!(kvstore.get("key"), None::<String>.into());
-        assert_eq!(
-            kvstore.set("key".into(), "value".into(), None),
-            RespData::ok()
-        );
-        assert_eq!(kvstore.get("key"), "value".into());
+        assert_eq!(kvstore.gets("key".into()), None::<String>.into());
+        assert_eq!(kvstore.set("key".into(), "value".into()), RespData::ok());
+        assert_eq!(kvstore.gets("key".into()), "value".into());
         assert_eq!(
             kvstore.getset("key".into(), "newvalue".into()),
             "value".into()
@@ -212,6 +186,7 @@ mod test {
             ]
             .into()
         );
+        println!("============= 1");
         assert_eq!(
             kvstore.msetnx(
                 vec!["key3".into(), "key4".into(), "key5".into()],
@@ -219,6 +194,7 @@ mod test {
             ),
             0.into()
         );
+        println!("============= 2");
         assert_eq!(
             kvstore.msetnx(
                 vec!["key4".into(), "key5".into(), "key6".into()],
@@ -226,38 +202,26 @@ mod test {
             ),
             1.into()
         );
+        println!("============= 3");
         assert_eq!(kvstore.setnx("key7".into(), "value7".into()), 1.into());
+        println!("============= 4");
         assert_eq!(kvstore.setnx("key7".into(), "value8".into()), 0.into());
-        assert_eq!(kvstore.get("key7"), "value7".into());
-    }
-
-    #[test]
-    fn test_append() {
-        let mut kvstore = KVStore::new(mpsc::unbounded_channel().1, CancellationToken::new());
-
-        assert_eq!(kvstore.get("key"), None::<String>.into());
-        assert_eq!(kvstore.append("key".into(), "val1".into()), 4.into());
-        assert_eq!(kvstore.get("key"), "val1".into());
-        assert_eq!(kvstore.append("key".into(), "val2".into()), 8.into());
-        assert_eq!(kvstore.get("key"), "val1val2".into());
-        assert_eq!(kvstore.append("key".into(), "".into()), 8.into());
-        assert_eq!(kvstore.get("key"), "val1val2".into());
-        assert_eq!(kvstore.get("key"), "val1val2".into());
+        assert_eq!(kvstore.gets("key7".into()), "value7".into());
     }
 
     #[test]
     fn test_integer_ops() {
         let mut kvstore = KVStore::new(mpsc::unbounded_channel().1, CancellationToken::new());
 
-        assert_eq!(kvstore.get("no1"), None::<String>.into());
+        assert_eq!(kvstore.gets("no1".into()), None::<String>.into());
         assert_eq!(kvstore.decrby("no1".into(), 1024), (-1024).into());
         assert_eq!(kvstore.decrby("no1".into(), 1024), (-2048).into());
         assert_eq!(kvstore.incrby("no1".into(), -2048), (-4096).into());
-        assert_eq!(kvstore.get("no1"), "-4096".into());
+        assert_eq!(kvstore.gets("no1".into()), "-4096".into());
         assert_eq!(kvstore.decrby("no1".into(), -2048), (-2048).into());
         assert_eq!(kvstore.decrby("no1".into(), -4096), (2048).into());
         assert_eq!(kvstore.decrby("no1".into(), 2048), (0).into());
-        assert_eq!(kvstore.get("no1"), "0".into());
+        assert_eq!(kvstore.gets("no1".into()), "0".into());
 
         assert_eq!(
             kvstore.decrby("no2".into(), i64::MAX),
@@ -275,17 +239,13 @@ mod test {
             anyhow!("ERR increment or decrement would overflow").into()
         );
 
-        kvstore.set("no4".into(), "NaN".into(), None);
+        kvstore.set("no4".into(), "NaN".into());
         assert_eq!(
             kvstore.incr("no4".into()),
             anyhow!("ERR value is not an integer or out of range").into()
         );
 
-        kvstore.set(
-            "no4".into(),
-            "99999999999999999999999999999999999".into(),
-            None,
-        );
+        kvstore.set("no4".into(), "99999999999999999999999999999999999".into());
         assert_eq!(
             kvstore.incr("no4".into()),
             anyhow!("ERR value is not an integer or out of range").into()
@@ -295,7 +255,7 @@ mod test {
     #[test]
     fn test_substring() {
         let mut kvstore = KVStore::new(mpsc::unbounded_channel().1, CancellationToken::new());
-        kvstore.set("key".into(), "0123456789".into(), None);
+        kvstore.set("key".into(), "0123456789".into());
         assert_eq!(kvstore.substring("key".into(), 0, 0), "0".into());
         assert_eq!(kvstore.substring("key".into(), 0, 1), "01".into());
         assert_eq!(kvstore.substring("key".into(), 1, 3), "123".into());

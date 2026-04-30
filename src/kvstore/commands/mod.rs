@@ -1,7 +1,5 @@
 pub mod parser;
 
-use std::time::Instant;
-
 #[derive(Debug, PartialEq)]
 pub enum Command {
     Shutdown,
@@ -24,11 +22,11 @@ pub enum Command {
     Exists {
         keys: Vec<String>,
     },
-    // string commands
-    Append {
+    Expire {
         key: String,
-        value: String,
+        ttl: i64,
     },
+    // string commands
     Decr {
         key: String,
     },
@@ -64,7 +62,6 @@ pub enum Command {
     Set {
         key: String,
         value: String,
-        expiry: Option<Instant>,
     },
     Setnx {
         key: String,
