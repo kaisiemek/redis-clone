@@ -6,14 +6,14 @@ impl KVStore {
     pub fn ttl(&mut self, key: &str) -> RespData {
         let ttl = self.get_ttl(key);
         if ttl <= 0 {
-            RespData::Integer(ttl)
+            ttl.into()
         } else {
-            RespData::Integer(ttl / 1000)
+            (ttl / 1000).into()
         }
     }
 
     pub fn pttl(&mut self, key: &str) -> RespData {
-        RespData::Integer(self.get_ttl(key))
+        self.get_ttl(key).into()
     }
 
     pub fn del(&mut self, keys: &[String]) -> RespData {
@@ -23,7 +23,7 @@ impl KVStore {
                 keys_deleted += 1;
             }
         }
-        RespData::Integer(keys_deleted)
+        keys_deleted.into()
     }
 
     pub fn exists(&self, keys: &[String]) -> RespData {
@@ -61,4 +61,3 @@ impl KVStore {
         expiry.duration_since(now).as_millis() as i64
     }
 }
-

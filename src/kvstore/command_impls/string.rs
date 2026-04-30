@@ -19,7 +19,7 @@ impl KVStore {
             }
         } as i64;
 
-        RespData::Integer(new_size)
+        new_size.into()
     }
 
     pub fn decr(&mut self, key: String) -> RespData {
@@ -69,14 +69,17 @@ impl KVStore {
     }
 
     pub fn mget(&mut self, keys: Vec<String>) -> RespData {
-        RespData::Array(keys.iter().map(|key| self.get(key)).collect())
+        keys.iter()
+            .map(|key| self.get(key))
+            .collect::<Vec<_>>()
+            .into()
     }
 
     pub fn mset(&mut self, keys: Vec<String>, values: Vec<String>) -> RespData {
         for (key, value) in keys.into_iter().zip(values) {
             self.set(key, value, None);
         }
-        RespData::SimpleString(String::from("OK"))
+        RespData::ok()
     }
 
     pub fn msetnx(&mut self, keys: Vec<String>, values: Vec<String>) -> RespData {
@@ -99,7 +102,7 @@ impl KVStore {
             self.expiries.insert(key.clone(), expiry);
         }
         self.data.insert(key, value);
-        RespData::SimpleString(String::from("OK"))
+        RespData::ok()
     }
 
     pub fn setnx(&mut self, key: String, value: String) -> RespData {
@@ -177,7 +180,7 @@ mod test {
         assert_eq!(kvstore.get("key"), None::<String>.into());
         assert_eq!(
             kvstore.set("key".into(), "value".into(), None),
-            RespData::SimpleString("OK".into())
+            RespData::ok()
         );
         assert_eq!(kvstore.get("key"), "value".into());
         assert_eq!(
@@ -194,7 +197,7 @@ mod test {
                 vec!["key1".into(), "key2".into(), "key3".into()],
                 vec!["val1".into(), "val2".into(), "".into()]
             ),
-            RespData::SimpleString("OK".into())
+            RespData::ok()
         );
         assert_eq!(
             kvstore.exists(&["key1".into(), "key2".into(), "key7".into()]),

@@ -31,7 +31,10 @@ pub enum RespData {
 }
 
 impl RespData {
-    pub fn encode_resp_data(&self) -> String {
+    pub fn ok() -> RespData {
+        RespData::SimpleString("OK".to_string())
+    }
+    pub fn encode(&self) -> String {
         match self {
             RespData::Array(array) => Self::encode_array(array),
             RespData::BulkString(string) => format!("${}\r\n{}\r\n", string.len(), string),
@@ -45,7 +48,7 @@ impl RespData {
     fn encode_array(array: &Vec<RespData>) -> String {
         let mut string = format!("*{}\r\n", array.len());
         for element in array {
-            string.push_str(element.encode_resp_data().as_str());
+            string.push_str(element.encode().as_str());
         }
         string
     }

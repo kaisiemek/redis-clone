@@ -112,7 +112,6 @@ impl Connection {
         self.request_channel.send(Request {
             connection: self.addr,
             argv,
-            reply_buf: String::new(),
             reply_channel: sender,
         })?;
         let kvstore_reply = timeout(Duration::from_millis(500), receiver).await??;

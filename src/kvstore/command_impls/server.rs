@@ -4,7 +4,7 @@ impl KVStore {
     pub fn ping(message: Option<String>) -> RespData {
         match message {
             Some(msg) => Self::echo(msg),
-            None => RespData::SimpleString(String::from("OK")),
+            None => RespData::SimpleString(String::from("PONG")),
         }
     }
 
@@ -14,6 +14,6 @@ impl KVStore {
 
     pub fn shutdown(&self) -> RespData {
         self.cancellation_token.cancel();
-        RespData::SimpleString(String::from("OK"))
+        RespData::ok()
     }
 }
