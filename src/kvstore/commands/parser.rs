@@ -107,6 +107,11 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
             begin: ensure_integer_arg(&mut iter, &cmd)?,
             end: ensure_integer_arg(&mut iter, &cmd)?,
         },
+        "lrem" => Command::Lrem {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+            count: ensure_integer_arg(&mut iter, &cmd)?,
+            element: ensure_next_arg(&mut iter, &cmd)?,
+        },
         _ => bail!("ERR unknown command '{}'", cmd),
     };
 

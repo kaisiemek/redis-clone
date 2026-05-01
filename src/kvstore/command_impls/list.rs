@@ -84,6 +84,57 @@ impl KVStore {
         list.make_contiguous()[start_index..end_index].into()
     }
 
+    pub fn lrem(&mut self, key: String, mut count: i64, element: String) -> RespData {
+        let list = match self.get_list(&key) {
+            Ok(Some(list)) => list,
+            // redis just returns an empty string for keys that don't exist
+            Ok(None) => return 0.into(),
+            Err(err) => return err.into(),
+        };
+        let new_list = std::mem::take(list);
+
+        /* Redis controls the element removal according to the value of count:
+         *   count > 0 -> remove the first n elements
+         *   count = 0 -> remove all elements
+         *   count < 0 -> remove the last n elements
+         */
+        let reverse = count < 0;
+        if count < 0 {
+            count = -count;
+        } else if count == 0 {
+            count = new_list.len() as i64;
+        }
+
+        let mut removed: i64 = 0;
+        let filter_fn = |el: &String| {
+            if el == &element && removed < count {
+                removed += 1;
+                false
+            } else {
+                true
+            }
+        };
+
+        *list = if reverse {
+            new_list
+                .into_iter()
+                .rev()
+                .filter(filter_fn)
+                .collect::<Vec<String>>()
+                .into_iter()
+                .rev()
+                .collect()
+        } else {
+            new_list.into_iter().filter(filter_fn).collect()
+        };
+
+        if list.is_empty() {
+            self.remove(&key);
+        }
+
+        removed.into()
+    }
+
     fn get_list(&mut self, key: &str) -> Result<Option<&mut VecDeque<String>>> {
         let val = match self.get(key) {
             Some(val) => val,
@@ -199,5 +250,39 @@ mod test {
         let RespData::NullBulkString = reply else {
             panic!("expected nil, got {:?}", reply);
         };
+    }
+
+    #[test]
+    fn test_lrem() {
+        let mut kvstore = KVStore::new(mpsc::unbounded_channel().1, CancellationToken::new());
+        kvstore.lpush(
+            "l".into(),
+            make_vec(vec!["d", "x", "x", "c", "x", "x", "b", "x", "x", "a"]),
+        );
+        assert_eq!(kvstore.lrem("l".into(), 2, "x".into()), 2.into());
+        expect_range(
+            &mut kvstore,
+            "l",
+            0,
+            -1,
+            vec!["a", "b", "x", "x", "c", "x", "x", "d"],
+        );
+        assert_eq!(kvstore.lrem("l".into(), -3, "x".into()), 3.into());
+        expect_range(&mut kvstore, "l", 0, -1, vec!["a", "b", "x", "c", "d"]);
+
+        kvstore.lpush(
+            "l2".into(),
+            make_vec(vec!["d", "x", "x", "c", "x", "x", "b", "x", "x", "a"]),
+        );
+        assert_eq!(kvstore.lrem("l2".into(), 10, "y".into()), 0.into());
+        expect_range(
+            &mut kvstore,
+            "l2",
+            0,
+            -1,
+            vec!["a", "x", "x", "b", "x", "x", "c", "x", "x", "d"],
+        );
+        assert_eq!(kvstore.lrem("l2".into(), 10, "x".into()), 6.into());
+        expect_range(&mut kvstore, "l2", 0, -1, vec!["a", "b", "c", "d"]);
     }
 }

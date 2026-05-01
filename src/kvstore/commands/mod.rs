@@ -92,4 +92,9 @@ pub enum Command {
         begin: i64,
         end: i64,
     },
+    Lrem {
+        key: String,
+        count: i64,
+        element: String,
+    },
 }

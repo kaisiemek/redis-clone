@@ -41,6 +41,11 @@ impl KVStore {
             Command::Lpop { key } => self.lpop(key),
             Command::Lpush { key, values } => self.lpush(key, values),
             Command::Lrange { key, begin, end } => self.lrange(key, begin, end),
+            Command::Lrem {
+                key,
+                count,
+                element,
+            } => self.lrem(key, count, element),
         }
     }
 }
