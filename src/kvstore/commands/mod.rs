@@ -97,4 +97,14 @@ pub enum Command {
         count: i64,
         element: String,
     },
+    Lset {
+        key: String,
+        index: i64,
+        element: String,
+    },
+    Ltrim {
+        key: String,
+        begin: i64,
+        end: i64,
+    },
 }

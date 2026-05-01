@@ -1,6 +1,6 @@
 use std::collections::VecDeque;
 
-use anyhow::{Result, bail};
+use anyhow::{Result, anyhow, bail};
 
 use crate::{
     kvstore::{KVStore, KVStoreValue},
@@ -135,6 +135,43 @@ impl KVStore {
         removed.into()
     }
 
+    pub fn lset(&mut self, key: String, mut index: i64, element: String) -> RespData {
+        let list = match self.get_list(&key) {
+            Ok(Some(list)) => list,
+            Ok(None) => return anyhow!("ERR no such key").into(),
+            Err(err) => return err.into(),
+        };
+
+        // redis allows negative indeces
+        if index < 0 {
+            index += list.len() as i64;
+        }
+
+        if index < 0 || index >= list.len() as i64 {
+            return anyhow!("ERR index out of range").into();
+        }
+        list[index as usize] = element;
+
+        RespData::ok()
+    }
+
+    pub fn ltrim(&mut self, key: String, begin: i64, end: i64) -> RespData {
+        let list = match self.get_list(&key) {
+            Ok(Some(list)) => list,
+            Ok(None) => return RespData::ok(),
+            Err(err) => return err.into(),
+        };
+
+        let (begin_index, end_index) = Self::fix_index_range(list.len(), begin, end);
+        if begin_index >= end_index {
+            self.remove(&key);
+            return RespData::ok();
+        }
+        *list = list.drain(begin_index..end_index).collect();
+
+        RespData::ok()
+    }
+
     fn get_list(&mut self, key: &str) -> Result<Option<&mut VecDeque<String>>> {
         let val = match self.get(key) {
             Some(val) => val,
@@ -199,7 +236,7 @@ mod test {
     }
 
     #[test]
-    fn test_push_pop() {
+    fn test_push_pop_len() {
         let mut kvstore = KVStore::new(mpsc::unbounded_channel().1, CancellationToken::new());
         assert_eq!(kvstore.llen("l".into()), RespData::Integer(0));
         assert_eq!(kvstore.lpop("l".into()), RespData::NullBulkString);
@@ -284,5 +321,81 @@ mod test {
         );
         assert_eq!(kvstore.lrem("l2".into(), 10, "x".into()), 6.into());
         expect_range(&mut kvstore, "l2", 0, -1, vec!["a", "b", "c", "d"]);
+    }
+
+    #[test]
+    fn test_lset() {
+        let mut kvstore = KVStore::new(mpsc::unbounded_channel().1, CancellationToken::new());
+
+        kvstore.lpush("l".into(), make_vec(vec!["c", "b", "a"]));
+        assert_eq!(
+            kvstore.lset("l".into(), -3, "x".into()),
+            RespData::SimpleString("OK".into())
+        );
+        expect_range(&mut kvstore, "l", 0, -1, vec!["x", "b", "c"]);
+
+        assert_eq!(
+            kvstore.lset("l".into(), 1, "x".into()),
+            RespData::SimpleString("OK".into())
+        );
+        expect_range(&mut kvstore, "l", 0, -1, vec!["x", "x", "c"]);
+
+        assert_eq!(
+            kvstore.lset("l".into(), 4, "x".into()),
+            RespData::SimpleError("ERR index out of range".into())
+        );
+        assert_eq!(
+            kvstore.lset("l".into(), -4, "x".into()),
+            RespData::SimpleError("ERR index out of range".into())
+        );
+        assert_eq!(
+            kvstore.lset("l1".into(), 4, "x".into()),
+            RespData::SimpleError("ERR no such key".into())
+        );
+    }
+    #[test]
+    fn test_ltrim() {
+        let mut kvstore = KVStore::new(mpsc::unbounded_channel().1, CancellationToken::new());
+
+        kvstore.lpush(
+            "l".into(),
+            make_vec(vec!["k", "j", "i", "h", "g", "f", "e", "d", "c", "b", "a"]),
+        );
+        assert_eq!(
+            kvstore.ltrim("l".into(), 0, 8),
+            RespData::SimpleString("OK".into())
+        );
+        expect_range(
+            &mut kvstore,
+            "l",
+            0,
+            -1,
+            vec!["a", "b", "c", "d", "e", "f", "g", "h", "i"],
+        );
+        assert_eq!(
+            kvstore.ltrim("l".into(), -4, -1),
+            RespData::SimpleString("OK".into())
+        );
+        expect_range(&mut kvstore, "l", 0, -1, vec!["f", "g", "h", "i"]);
+        assert_eq!(
+            kvstore.ltrim("l".into(), 1, 0),
+            RespData::SimpleString("OK".into())
+        );
+        expect_range(&mut kvstore, "l", 0, -1, vec![]);
+
+        kvstore.lpush(
+            "l".into(),
+            make_vec(vec!["k", "j", "i", "h", "g", "f", "e", "d", "c", "b", "a"]),
+        );
+        assert_eq!(
+            kvstore.ltrim("l".into(), -1000, 2),
+            RespData::SimpleString("OK".into())
+        );
+        expect_range(&mut kvstore, "l", 0, -1, vec!["a", "b", "c"]);
+        assert_eq!(
+            kvstore.ltrim("l".into(), 1, 1000),
+            RespData::SimpleString("OK".into())
+        );
+        expect_range(&mut kvstore, "l", 0, -1, vec!["b", "c"]);
     }
 }

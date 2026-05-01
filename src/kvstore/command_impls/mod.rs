@@ -46,6 +46,12 @@ impl KVStore {
                 count,
                 element,
             } => self.lrem(key, count, element),
+            Command::Lset {
+                key,
+                index,
+                element,
+            } => self.lset(key, index, element),
+            Command::Ltrim { key, begin, end } => self.ltrim(key, begin, end),
         }
     }
 }
