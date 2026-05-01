@@ -1,11 +1,11 @@
 use crate::{kvstore::KVStore, resp::RespData};
 
 impl KVStore {
-    pub fn expire(&mut self, key: String, ttl: i64) -> RespData {
+    pub(in crate::kvstore::commands) fn expire(&mut self, key: String, ttl: i64) -> RespData {
         self.set_ttl(key, ttl).into()
     }
 
-    pub fn ttl(&mut self, key: &str) -> RespData {
+    pub(in crate::kvstore::commands) fn ttl(&mut self, key: &str) -> RespData {
         let ttl = self.get_ttl(key);
         if ttl <= 0 {
             ttl.into()
@@ -14,11 +14,11 @@ impl KVStore {
         }
     }
 
-    pub fn pttl(&mut self, key: &str) -> RespData {
+    pub(in crate::kvstore::commands) fn pttl(&mut self, key: &str) -> RespData {
         self.get_ttl(key).into()
     }
 
-    pub fn del(&mut self, keys: &[String]) -> RespData {
+    pub(in crate::kvstore::commands) fn del(&mut self, keys: &[String]) -> RespData {
         let mut keys_deleted: i64 = 0;
         for key in keys {
             if self.remove(key) {
@@ -28,7 +28,7 @@ impl KVStore {
         keys_deleted.into()
     }
 
-    pub fn exists(&self, keys: &[String]) -> RespData {
+    pub(in crate::kvstore::commands) fn exists(&self, keys: &[String]) -> RespData {
         let mut existing_keys: i64 = 0;
         for key in keys {
             if self.data.contains_key(key) {

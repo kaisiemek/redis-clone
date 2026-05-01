@@ -8,7 +8,7 @@ use crate::{
 };
 
 impl KVStore {
-    pub fn lindex(&mut self, key: String, mut index: i64) -> RespData {
+    pub(in crate::kvstore::commands) fn lindex(&mut self, key: String, mut index: i64) -> RespData {
         let list = match self.get_list(&key) {
             Ok(Some(list)) => list,
             Ok(None) => return RespData::NullBulkString,
@@ -28,7 +28,7 @@ impl KVStore {
         list[index as usize].as_str().into()
     }
 
-    pub fn llen(&mut self, key: String) -> RespData {
+    pub(in crate::kvstore::commands) fn llen(&mut self, key: String) -> RespData {
         match self.get_list(&key) {
             Ok(Some(list)) => (list.len() as i64).into(),
             Ok(None) => return 0.into(),
@@ -36,15 +36,24 @@ impl KVStore {
         }
     }
 
-    pub fn lpop(&mut self, key: String) -> RespData {
+    pub(in crate::kvstore::commands) fn lpop(&mut self, key: String) -> RespData {
         self.pop(key, false)
     }
 
-    pub fn lpush(&mut self, key: String, values: Vec<String>) -> RespData {
+    pub(in crate::kvstore::commands) fn lpush(
+        &mut self,
+        key: String,
+        values: Vec<String>,
+    ) -> RespData {
         self.push(key, values, false)
     }
 
-    pub fn lrange(&mut self, key: String, begin: i64, end: i64) -> RespData {
+    pub(in crate::kvstore::commands) fn lrange(
+        &mut self,
+        key: String,
+        begin: i64,
+        end: i64,
+    ) -> RespData {
         let list = match self.get_list(&key) {
             Ok(Some(list)) => list,
             // redis just returns an empty string for keys that don't exist
@@ -56,7 +65,12 @@ impl KVStore {
         list.make_contiguous()[start_index..end_index].into()
     }
 
-    pub fn lrem(&mut self, key: String, mut count: i64, element: String) -> RespData {
+    pub(in crate::kvstore::commands) fn lrem(
+        &mut self,
+        key: String,
+        mut count: i64,
+        element: String,
+    ) -> RespData {
         let list = match self.get_list(&key) {
             Ok(Some(list)) => list,
             // redis just returns an empty string for keys that don't exist
@@ -107,7 +121,12 @@ impl KVStore {
         removed.into()
     }
 
-    pub fn lset(&mut self, key: String, mut index: i64, element: String) -> RespData {
+    pub(in crate::kvstore::commands) fn lset(
+        &mut self,
+        key: String,
+        mut index: i64,
+        element: String,
+    ) -> RespData {
         let list = match self.get_list(&key) {
             Ok(Some(list)) => list,
             Ok(None) => return anyhow!("ERR no such key").into(),
@@ -127,7 +146,12 @@ impl KVStore {
         RespData::ok()
     }
 
-    pub fn ltrim(&mut self, key: String, begin: i64, end: i64) -> RespData {
+    pub(in crate::kvstore::commands) fn ltrim(
+        &mut self,
+        key: String,
+        begin: i64,
+        end: i64,
+    ) -> RespData {
         let list = match self.get_list(&key) {
             Ok(Some(list)) => list,
             Ok(None) => return RespData::ok(),
@@ -144,11 +168,15 @@ impl KVStore {
         RespData::ok()
     }
 
-    pub fn rpop(&mut self, key: String) -> RespData {
+    pub(in crate::kvstore::commands) fn rpop(&mut self, key: String) -> RespData {
         self.pop(key, true)
     }
 
-    pub fn rpush(&mut self, key: String, values: Vec<String>) -> RespData {
+    pub(in crate::kvstore::commands) fn rpush(
+        &mut self,
+        key: String,
+        values: Vec<String>,
+    ) -> RespData {
         self.push(key, values, true)
     }
 

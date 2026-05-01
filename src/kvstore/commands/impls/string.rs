@@ -6,19 +6,19 @@ use crate::{
 };
 
 impl KVStore {
-    pub fn decr(&mut self, key: String) -> RespData {
+    pub(in crate::kvstore::commands) fn decr(&mut self, key: String) -> RespData {
         self.calc(key, 1, i64::checked_sub).into()
     }
 
-    pub fn decrby(&mut self, key: String, operand: i64) -> RespData {
+    pub(in crate::kvstore::commands) fn decrby(&mut self, key: String, operand: i64) -> RespData {
         self.calc(key, operand, i64::checked_sub).into()
     }
 
-    pub fn gets(&mut self, key: String) -> RespData {
+    pub(in crate::kvstore::commands) fn gets(&mut self, key: String) -> RespData {
         self.get_string(&key).into()
     }
 
-    pub fn getset(&mut self, key: String, value: String) -> RespData {
+    pub(in crate::kvstore::commands) fn getset(&mut self, key: String, value: String) -> RespData {
         let previous = match self.get_string(&key) {
             Ok(prev) => prev,
             Err(err) => return err.into(),
@@ -27,29 +27,37 @@ impl KVStore {
         previous.into()
     }
 
-    pub fn incr(&mut self, key: String) -> RespData {
+    pub(in crate::kvstore::commands) fn incr(&mut self, key: String) -> RespData {
         self.calc(key, 1, i64::checked_add).into()
     }
 
-    pub fn incrby(&mut self, key: String, operand: i64) -> RespData {
+    pub(in crate::kvstore::commands) fn incrby(&mut self, key: String, operand: i64) -> RespData {
         self.calc(key, operand, i64::checked_add).into()
     }
 
-    pub fn mget(&mut self, keys: Vec<String>) -> RespData {
+    pub(in crate::kvstore::commands) fn mget(&mut self, keys: Vec<String>) -> RespData {
         keys.into_iter()
             .map(|key| self.get_string_or_nil(&key).into())
             .collect::<Vec<RespData>>()
             .into()
     }
 
-    pub fn mset(&mut self, keys: Vec<String>, values: Vec<String>) -> RespData {
+    pub(in crate::kvstore::commands) fn mset(
+        &mut self,
+        keys: Vec<String>,
+        values: Vec<String>,
+    ) -> RespData {
         for (key, value) in keys.into_iter().zip(values) {
             self.set(key, value);
         }
         RespData::ok()
     }
 
-    pub fn msetnx(&mut self, keys: Vec<String>, values: Vec<String>) -> RespData {
+    pub(in crate::kvstore::commands) fn msetnx(
+        &mut self,
+        keys: Vec<String>,
+        values: Vec<String>,
+    ) -> RespData {
         for key in keys.iter() {
             if self.contains(key) {
                 return false.into();
@@ -59,13 +67,13 @@ impl KVStore {
         true.into()
     }
 
-    pub fn set(&mut self, key: String, value: String) -> RespData {
+    pub(in crate::kvstore::commands) fn set(&mut self, key: String, value: String) -> RespData {
         self.expiries.remove(&key);
         self.insert(key, value);
         RespData::ok()
     }
 
-    pub fn setnx(&mut self, key: String, value: String) -> RespData {
+    pub(in crate::kvstore::commands) fn setnx(&mut self, key: String, value: String) -> RespData {
         if self.contains(&key) {
             return false.into();
         }
@@ -74,7 +82,12 @@ impl KVStore {
         true.into()
     }
 
-    pub fn substring(&mut self, key: String, begin: i64, end: i64) -> RespData {
+    pub(in crate::kvstore::commands) fn substring(
+        &mut self,
+        key: String,
+        begin: i64,
+        end: i64,
+    ) -> RespData {
         let string = match self.get_string(&key) {
             Ok(Some(string)) => string,
             // redis just returns an empty string for keys that don't exist

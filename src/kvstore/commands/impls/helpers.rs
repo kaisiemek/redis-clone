@@ -3,11 +3,11 @@ use std::time::{Duration, Instant};
 use crate::kvstore::{KVStore, KVStoreValue};
 
 impl KVStore {
-    pub fn contains(&mut self, key: &str) -> bool {
+    pub(in crate::kvstore::commands) fn contains(&mut self, key: &str) -> bool {
         self.get(key).is_some()
     }
 
-    pub fn get(&mut self, key: &str) -> Option<&mut KVStoreValue> {
+    pub(in crate::kvstore::commands) fn get(&mut self, key: &str) -> Option<&mut KVStoreValue> {
         if let Some(expiry) = self.expiries.get(key)
             && &Instant::now() > expiry
         {
@@ -17,13 +17,17 @@ impl KVStore {
         self.data.get_mut(key)
     }
 
-    pub fn insert<T: Into<KVStoreValue>>(&mut self, key: String, value: T) {
+    pub(in crate::kvstore::commands) fn insert<T: Into<KVStoreValue>>(
+        &mut self,
+        key: String,
+        value: T,
+    ) {
         let val = value.into();
         log::debug!("[kvstore] setting key '{}' to '{:?}'", key, val);
         self.data.insert(key, val);
     }
 
-    pub fn remove(&mut self, key: &str) -> bool {
+    pub(in crate::kvstore::commands) fn remove(&mut self, key: &str) -> bool {
         self.expiries.remove(key);
         let deleted = self.data.remove(key).is_some();
         if deleted {
@@ -32,7 +36,7 @@ impl KVStore {
         deleted
     }
 
-    pub fn get_ttl(&mut self, key: &str) -> i64 {
+    pub(in crate::kvstore::commands) fn get_ttl(&mut self, key: &str) -> i64 {
         // return -2 if the key doesn't exist at all
         if !self.contains(key) {
             return -2;
@@ -55,7 +59,7 @@ impl KVStore {
         expiry.duration_since(now).as_millis() as i64
     }
 
-    pub fn set_ttl(&mut self, key: String, ttl: i64) -> bool {
+    pub(in crate::kvstore::commands) fn set_ttl(&mut self, key: String, ttl: i64) -> bool {
         if !self.contains(&key) {
             return false;
         }
@@ -67,7 +71,11 @@ impl KVStore {
         true
     }
 
-    pub fn fix_index_range(len: usize, begin: i64, end: i64) -> (usize, usize) {
+    pub(in crate::kvstore::commands) fn fix_index_range(
+        len: usize,
+        begin: i64,
+        end: i64,
+    ) -> (usize, usize) {
         let start_index = Self::fix_index(len, begin);
         // redis uses inclusive end indeces
         // i.e. redis: getrange "0123" 0 0 -> "0", rust: "0123"[0..1] -> "0"
@@ -81,7 +89,7 @@ impl KVStore {
         }
     }
 
-    pub fn fix_index(len: usize, mut index: i64) -> usize {
+    pub(in crate::kvstore::commands) fn fix_index(len: usize, mut index: i64) -> usize {
         // redis can use negative indeces like Python, Rust slicing doesn't allow that
         if index < 0 {
             index += len as i64;
