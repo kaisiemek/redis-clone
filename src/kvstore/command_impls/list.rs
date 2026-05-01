@@ -37,39 +37,11 @@ impl KVStore {
     }
 
     pub fn lpop(&mut self, key: String) -> RespData {
-        let list = match self.get_list(&key) {
-            Ok(Some(list)) => list,
-            Ok(None) => return RespData::NullBulkString,
-            Err(err) => return err.into(),
-        };
-
-        let popped_el: RespData = match list.pop_front() {
-            Some(el) => el.into(),
-            None => RespData::NullBulkString,
-        };
-
-        if list.is_empty() {
-            self.remove(&key);
-        }
-        popped_el
+        self.pop(key, false)
     }
 
     pub fn lpush(&mut self, key: String, values: Vec<String>) -> RespData {
-        match self.get_list(&key) {
-            Ok(Some(list)) => {
-                for val in values {
-                    list.push_front(val);
-                }
-                (list.len() as i64).into()
-            }
-            Ok(None) => {
-                let new_list = VecDeque::from_iter(values.into_iter().rev());
-                let len = new_list.len() as i64;
-                self.insert(key, KVStoreValue::List(new_list));
-                len.into()
-            }
-            Err(err) => return err.into(),
-        }
+        self.push(key, values, false)
     }
 
     pub fn lrange(&mut self, key: String, begin: i64, end: i64) -> RespData {
@@ -172,6 +144,64 @@ impl KVStore {
         RespData::ok()
     }
 
+    pub fn rpop(&mut self, key: String) -> RespData {
+        self.pop(key, true)
+    }
+
+    pub fn rpush(&mut self, key: String, values: Vec<String>) -> RespData {
+        self.push(key, values, true)
+    }
+
+    fn pop(&mut self, key: String, popright: bool) -> RespData {
+        let list = match self.get_list(&key) {
+            Ok(Some(list)) => list,
+            Ok(None) => return RespData::NullBulkString,
+            Err(err) => return err.into(),
+        };
+
+        let popped_el = match if popright {
+            list.pop_back()
+        } else {
+            list.pop_front()
+        } {
+            Some(el) => el.into(),
+            None => RespData::NullBulkString,
+        };
+
+        if list.is_empty() {
+            self.remove(&key);
+        }
+        popped_el
+    }
+
+    fn push(&mut self, key: String, values: Vec<String>, pushright: bool) -> RespData {
+        match self.get_list(&key) {
+            Ok(Some(list)) => {
+                if pushright {
+                    list.extend(values.into_iter());
+                } else {
+                    for val in values {
+                        list.push_front(val);
+                    }
+                }
+                (list.len() as i64).into()
+            }
+            Ok(None) => {
+                let len = values.len();
+                self.insert(
+                    key,
+                    KVStoreValue::List(if pushright {
+                        VecDeque::from_iter(values.into_iter())
+                    } else {
+                        VecDeque::from_iter(values.into_iter().rev())
+                    }),
+                );
+                (len as i64).into()
+            }
+            Err(err) => return err.into(),
+        }
+    }
+
     fn get_list(&mut self, key: &str) -> Result<Option<&mut VecDeque<String>>> {
         let val = match self.get(key) {
             Some(val) => val,
@@ -254,6 +284,13 @@ mod test {
         assert_eq!(kvstore.lpop("l".into()), RespData::BulkString("f".into()));
         assert_eq!(kvstore.lpop("l".into()), RespData::BulkString("e".into()));
         expect_range(&mut kvstore, "l", 0, -1, vec!["d", "c", "b", "a"]);
+        assert_eq!(kvstore.rpop("l".into()), RespData::BulkString("a".into()));
+        assert_eq!(kvstore.rpop("l".into()), RespData::BulkString("b".into()));
+        assert_eq!(
+            kvstore.rpush("l".into(), make_vec(vec!["x", "y", "z"])),
+            5.into()
+        );
+        expect_range(&mut kvstore, "l", 0, -1, vec!["d", "c", "x", "y", "z"]);
     }
 
     #[test]

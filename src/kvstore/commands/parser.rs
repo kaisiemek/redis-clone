@@ -122,6 +122,13 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
             begin: ensure_integer_arg(&mut iter, &cmd)?,
             end: ensure_integer_arg(&mut iter, &cmd)?,
         },
+        "rpop" => Command::Rpop {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+        },
+        "rpush" => Command::Rpush {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+            values: ensure_arg_list(&mut iter, &cmd)?,
+        },
         _ => bail!("ERR unknown command '{}'", cmd),
     };
 

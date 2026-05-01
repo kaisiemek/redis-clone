@@ -107,4 +107,11 @@ pub enum Command {
         begin: i64,
         end: i64,
     },
+    Rpop {
+        key: String,
+    },
+    Rpush {
+        key: String,
+        values: Vec<String>,
+    },
 }

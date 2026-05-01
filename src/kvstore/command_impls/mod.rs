@@ -52,6 +52,8 @@ impl KVStore {
                 element,
             } => self.lset(key, index, element),
             Command::Ltrim { key, begin, end } => self.ltrim(key, begin, end),
+            Command::Rpop { key } => self.rpop(key),
+            Command::Rpush { key, values } => self.rpush(key, values),
         }
     }
 }
