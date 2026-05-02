@@ -33,9 +33,6 @@ pub enum Command {
     Ttl {
         key: String,
     },
-    Pttl {
-        key: String,
-    },
     // string commands
     Decr {
         key: String,
@@ -175,7 +172,6 @@ impl KVStore {
             Command::Exists { keys } => self.exists(&keys),
             Command::Expire { key, ttl } => self.expire(key, ttl),
             Command::Ttl { key } => self.ttl(&key),
-            Command::Pttl { key } => self.pttl(&key),
             // string commands
             Command::Decr { key } => self.decr(key),
             Command::Decrby { key, operand } => self.decrby(key, operand),

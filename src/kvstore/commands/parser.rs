@@ -42,9 +42,6 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
         "ttl" => Command::Ttl {
             key: ensure_next_arg(&mut iter, &cmd)?,
         },
-        "pttl" => Command::Pttl {
-            key: ensure_next_arg(&mut iter, &cmd)?,
-        },
         // string commands
         "decr" => Command::Decr {
             key: ensure_next_arg(&mut iter, &cmd)?,
@@ -227,7 +224,6 @@ mod test {
             vec!["ping", "test"],
             vec!["echo", "test"],
             vec!["ttl", "key"],
-            vec!["pttl", "key"],
             vec!["del", "key"],
             vec!["del", "1", "2", "3"],
             vec!["decrby", "key", "10"],
@@ -250,9 +246,6 @@ mod test {
                 message: String::from("test"),
             },
             Command::Ttl {
-                key: String::from("key"),
-            },
-            Command::Pttl {
                 key: String::from("key"),
             },
             Command::Del {

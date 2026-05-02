@@ -6,15 +6,6 @@ impl KVStore {
     }
 
     pub(in crate::kvstore::commands) fn ttl(&mut self, key: &str) -> RespData {
-        let ttl = self.get_ttl(key);
-        if ttl <= 0 {
-            ttl.into()
-        } else {
-            (ttl / 1000).into()
-        }
-    }
-
-    pub(in crate::kvstore::commands) fn pttl(&mut self, key: &str) -> RespData {
         self.get_ttl(key).into()
     }
 

@@ -12,6 +12,7 @@ use tokio_util::sync::CancellationToken;
 use crate::{kvstore, network};
 
 type Thread = JoinHandle<Result<()>>;
+
 struct Application {
     cancellation_token: CancellationToken,
     server_thread: Thread,
