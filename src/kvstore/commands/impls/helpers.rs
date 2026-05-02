@@ -1,4 +1,4 @@
-use std::fs::File;
+use std::{fs::File, io::BufReader};
 
 use anyhow::Result;
 use chrono::Utc;
@@ -111,11 +111,26 @@ impl KVStore {
         self.transactions.get_mut(&client)
     }
 
-    pub(in crate::kvstore::commands) fn persist_kvstore(&mut self) -> Result<()> {
-        let mut file = File::create("kvstore.mpk")?;
-        rmp_serde::encode::write(&mut file, &self.data)?;
-        let mut file2 = File::create("expiries.mpk")?;
-        rmp_serde::encode::write(&mut file2, &self.expiries)?;
+    pub(in crate::kvstore) fn persist(&mut self) -> Result<()> {
+        let mut kvstore_file = File::create("kvstore.mpk")?;
+        rmp_serde::encode::write(&mut kvstore_file, &self.data)?;
+        log::info!("[kvstore] successfully persisted kvstore to kvstore.mpk");
+        let mut expiries_file = File::create("expiries.mpk")?;
+        rmp_serde::encode::write(&mut expiries_file, &self.expiries)?;
+        log::info!("[kvstore] successfully persisted expiries to expiries.mpk");
+        Ok(())
+    }
+
+    pub(in crate::kvstore) fn restore(&mut self) -> Result<()> {
+        let kvstore_file = File::open("kvstore.mpk")?;
+        let kvstore_reader = BufReader::new(kvstore_file);
+        self.data = rmp_serde::decode::from_read(kvstore_reader)?;
+        log::info!("[kvstore] successfully restored kvstore from kvstore.mpk");
+
+        let expiries_file = File::open("expiries.mpk")?;
+        let expiries_reader = BufReader::new(expiries_file);
+        self.expiries = rmp_serde::decode::from_read(expiries_reader)?;
+        log::info!("[kvstore] successfully restored kvstore from kvstore.mpk");
         Ok(())
     }
 }

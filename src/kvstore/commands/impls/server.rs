@@ -25,6 +25,10 @@ impl KVStore {
         }
     }
 
+    pub(in crate::kvstore::commands) fn save(&mut self) -> RespData {
+        self.persist().into()
+    }
+
     pub(in crate::kvstore::commands) fn shutdown(&self) -> RespData {
         self.cancellation_token.cancel();
         RespData::ok()

@@ -26,6 +26,7 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
         "ping" => Command::Ping {
             message: iter.next(),
         },
+        "save" => Command::Save,
         "shutdown" => Command::Shutdown,
         // generic commands
         "del" => Command::Del {

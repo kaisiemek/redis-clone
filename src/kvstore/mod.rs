@@ -43,7 +43,11 @@ impl KVStore {
     }
 
     pub async fn run_event_loop(&mut self) -> Result<()> {
+        if let Err(err) = self.restore() {
+            log::warn!("[kvstore] couldn't restore state: {}", err);
+        }
         log::info!("[kvstore] running event loop");
+
         loop {
             tokio::select! {
                 Some(request) = self.request_channel.recv() => {
@@ -54,7 +58,11 @@ impl KVStore {
                 }
             }
         }
+
         log::info!("[kvstore] event loop has finished");
+        if let Err(err) = self.persist() {
+            log::error!("[kvstore] couldn't persist state: {}", err);
+        }
         Ok(())
     }
 

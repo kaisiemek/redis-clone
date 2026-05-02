@@ -89,6 +89,15 @@ impl<T: Into<RespData>> From<Option<T>> for RespData {
     }
 }
 
+impl From<Result<()>> for RespData {
+    fn from(value: Result<()>) -> Self {
+        match value {
+            Ok(_) => RespData::ok(),
+            Err(err) => RespData::SimpleError(err.to_string()),
+        }
+    }
+}
+
 impl<T: Into<RespData>> From<Result<T>> for RespData {
     fn from(value: Result<T>) -> Self {
         match value {

@@ -17,6 +17,7 @@ pub enum Command {
     Ping {
         message: Option<String>,
     },
+    Save,
     Shutdown,
     // generic commands
     Del {
@@ -167,6 +168,7 @@ impl KVStore {
             Command::Echo { message } => Self::echo(message),
             Command::Flushdb => self.flushdb(),
             Command::Ping { message } => Self::ping(message),
+            Command::Save => self.save(),
             Command::Shutdown => self.shutdown(),
             // generic commands
             Command::Del { keys } => self.del(&keys),
