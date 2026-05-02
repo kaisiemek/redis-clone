@@ -22,6 +22,7 @@ pub struct Connection {
     request_channel: mpsc::UnboundedSender<Request>,
     parser: RequestParser,
     linebuf: Vec<u8>,
+    connected: bool,
 }
 
 impl Connection {
@@ -40,6 +41,7 @@ impl Connection {
             request_channel,
             parser: RequestParser::new(),
             linebuf: Vec::new(),
+            connected: true,
         }
     }
 
@@ -58,7 +60,7 @@ impl Connection {
     }
 
     async fn main_loop(&mut self) -> Result<()> {
-        loop {
+        while self.connected {
             tokio::select! {
                 _ = self.cancellation_token.cancelled() => {
                     break;
@@ -108,6 +110,14 @@ impl Connection {
             self.addr,
             argv
         );
+        // special case quit command: close the connection
+        if let Some(command) = argv.get(0)
+            && (command == "QUIT" || command == "quit")
+        {
+            self.connected = false;
+            return Ok(None);
+        }
+
         let (sender, receiver) = oneshot::channel();
         self.request_channel.send(Request {
             connection: self.addr,
