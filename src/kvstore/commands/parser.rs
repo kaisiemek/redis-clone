@@ -18,9 +18,11 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
 
     let command = match cmd.as_str() {
         // server commands
+        "dbsize" => Command::Dbsize,
         "echo" => Command::Echo {
             message: ensure_next_arg(&mut iter, &cmd)?,
         },
+        "flushdb" => Command::Flushdb,
         "ping" => Command::Ping {
             message: iter.next(),
         },

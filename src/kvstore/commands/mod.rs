@@ -1,10 +1,10 @@
+mod impls;
+pub mod parser;
+
 use crate::{
     kvstore::{KVStore, commands::parser::parse_command},
     resp::RespData,
 };
-
-mod impls;
-pub mod parser;
 
 #[derive(Debug, PartialEq)]
 pub enum Command {
@@ -12,6 +12,8 @@ pub enum Command {
     Echo {
         message: String,
     },
+    Dbsize,
+    Flushdb,
     Ping {
         message: Option<String>,
     },
@@ -161,7 +163,9 @@ impl KVStore {
         log::debug!("[kvstore] running command: {:?}", command);
         match command {
             // server commands
+            Command::Dbsize => self.dbsize(),
             Command::Echo { message } => Self::echo(message),
+            Command::Flushdb => self.flushdb(),
             Command::Ping { message } => Self::ping(message),
             Command::Shutdown => self.shutdown(),
             // generic commands
