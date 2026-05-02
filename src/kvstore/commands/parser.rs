@@ -39,7 +39,18 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
             key: ensure_next_arg(&mut iter, &cmd)?,
             ttl: ensure_integer_arg(&mut iter, &cmd)?,
         },
+        "rename" => Command::Rename {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+            newkey: ensure_next_arg(&mut iter, &cmd)?,
+        },
+        "renamenx" => Command::Renamenx {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+            newkey: ensure_next_arg(&mut iter, &cmd)?,
+        },
         "ttl" => Command::Ttl {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+        },
+        "type" => Command::Type {
             key: ensure_next_arg(&mut iter, &cmd)?,
         },
         // string commands

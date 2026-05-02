@@ -30,6 +30,29 @@ impl KVStore {
         self.data.insert(key, val);
     }
 
+    pub(in crate::kvstore::commands) fn move_element(
+        &mut self,
+        key: String,
+        target: String,
+    ) -> bool {
+        let Some(value) = self.data.remove(&key) else {
+            return false;
+        };
+
+        if let Some(expiry) = self.expiries.remove(&key) {
+            self.expiries.insert(target.clone(), expiry);
+        }
+
+        log::debug!(
+            "[kvstore] moved value '{:?}' from key '{}' to '{}'",
+            value,
+            key,
+            target
+        );
+        self.data.insert(target, value);
+        true
+    }
+
     pub(in crate::kvstore::commands) fn remove(&mut self, key: &str) -> bool {
         self.expiries.remove(key);
         let deleted = self.data.remove(key).is_some();

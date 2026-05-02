@@ -30,7 +30,18 @@ pub enum Command {
         key: String,
         ttl: i64,
     },
+    Rename {
+        key: String,
+        newkey: String,
+    },
+    Renamenx {
+        key: String,
+        newkey: String,
+    },
     Ttl {
+        key: String,
+    },
+    Type {
         key: String,
     },
     // string commands
@@ -171,7 +182,10 @@ impl KVStore {
             Command::Del { keys } => self.del(&keys),
             Command::Exists { keys } => self.exists(&keys),
             Command::Expire { key, ttl } => self.expire(key, ttl),
-            Command::Ttl { key } => self.ttl(&key),
+            Command::Rename { key, newkey } => self.rename(key, newkey),
+            Command::Renamenx { key, newkey } => self.renamenx(key, newkey),
+            Command::Ttl { key } => self.ttl(key),
+            Command::Type { key } => self.value_type(key),
             // string commands
             Command::Decr { key } => self.decr(key),
             Command::Decrby { key, operand } => self.decrby(key, operand),
