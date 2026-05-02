@@ -1,4 +1,7 @@
-use std::time::{Duration, Instant};
+use std::fs::File;
+
+use anyhow::Result;
+use chrono::Utc;
 
 use crate::kvstore::{KVStore, KVStoreValue, transaction::Transaction};
 
@@ -9,7 +12,7 @@ impl KVStore {
 
     pub(in crate::kvstore::commands) fn get(&mut self, key: &str) -> Option<&mut KVStoreValue> {
         if let Some(expiry) = self.expiries.get(key)
-            && &Instant::now() > expiry
+            && expiry - Utc::now().timestamp() <= 0
         {
             log::debug!("[kvstore] key '{}' expired", key);
             self.remove(key);
@@ -48,15 +51,14 @@ impl KVStore {
             None => return -1,
         };
 
-        let now = Instant::now();
-
+        let ttl = expiry - Utc::now().timestamp();
         // delete and return -2 if the TTL has expired
-        if expiry < &now {
+        if ttl <= 0 {
             self.remove(key);
             return -2;
         }
 
-        expiry.duration_since(now).as_millis() as i64
+        return ttl;
     }
 
     pub(in crate::kvstore::commands) fn set_ttl(&mut self, key: String, ttl: i64) -> bool {
@@ -65,7 +67,7 @@ impl KVStore {
         }
         // redis accepts negative values for the expire command, making the key
         // expire immediately
-        let expiry = Instant::now() + Duration::from_secs(ttl.clamp(0, i64::MAX) as u64);
+        let expiry = Utc::now().timestamp() + ttl;
         log::debug!("[kvstore] key '{}' set to expire in {}s", key, ttl);
         self.expiries.insert(key, expiry);
         true
@@ -107,5 +109,13 @@ impl KVStore {
             return None;
         };
         self.transactions.get_mut(&client)
+    }
+
+    pub(in crate::kvstore::commands) fn persist_kvstore(&mut self) -> Result<()> {
+        let mut file = File::create("kvstore.mpk")?;
+        rmp_serde::encode::write(&mut file, &self.data)?;
+        let mut file2 = File::create("expiries.mpk")?;
+        rmp_serde::encode::write(&mut file2, &self.expiries)?;
+        Ok(())
     }
 }

@@ -2,45 +2,27 @@ mod commands;
 mod transaction;
 
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, VecDeque},
     net::SocketAddr,
-    time::Instant,
 };
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
 use crate::{kvstore::transaction::Transaction, network};
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize, Serialize)]
 pub enum KVStoreValue {
     String(String),
     List(VecDeque<String>),
-}
-
-impl From<&str> for KVStoreValue {
-    fn from(value: &str) -> Self {
-        Self::String(value.to_string())
-    }
-}
-
-impl From<String> for KVStoreValue {
-    fn from(value: String) -> Self {
-        Self::String(value)
-    }
-}
-
-impl From<i64> for KVStoreValue {
-    fn from(value: i64) -> Self {
-        Self::String(value.to_string())
-    }
 }
 
 pub struct KVStore {
     request_channel: mpsc::UnboundedReceiver<network::Request>,
     cancellation_token: CancellationToken,
     data: HashMap<String, KVStoreValue>,
-    expiries: HashMap<String, Instant>,
+    expiries: HashMap<String, i64>,
     transactions: HashMap<SocketAddr, Transaction>,
     current_client: Option<SocketAddr>,
 }
@@ -84,5 +66,23 @@ impl KVStore {
         log::debug!("[kvstore] sending reply: {:?}", reply);
         req.send_reply(reply);
         self.current_client = None;
+    }
+}
+
+impl From<&str> for KVStoreValue {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_string())
+    }
+}
+
+impl From<String> for KVStoreValue {
+    fn from(value: String) -> Self {
+        Self::String(value)
+    }
+}
+
+impl From<i64> for KVStoreValue {
+    fn from(value: i64) -> Self {
+        Self::String(value.to_string())
     }
 }
