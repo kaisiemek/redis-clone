@@ -3,10 +3,8 @@ mod kvstore;
 mod network;
 mod resp;
 
-use anyhow::Result;
-
 #[tokio::main]
-async fn main() -> Result<()> {
+async fn main() -> anyhow::Result<()> {
     log4rs::init_file("config/log4rs.yaml", Default::default())?;
     application::start().await
 }

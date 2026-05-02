@@ -1,15 +1,16 @@
-mod command_impls;
 mod commands;
+mod transaction;
 
 use anyhow::Result;
 use std::{
     collections::{HashMap, VecDeque},
+    net::SocketAddr,
     time::Instant,
 };
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use crate::{kvstore::commands::Command, network};
+use crate::{kvstore::transaction::Transaction, network};
 
 #[derive(Debug)]
 pub enum KVStoreValue {
@@ -40,6 +41,8 @@ pub struct KVStore {
     cancellation_token: CancellationToken,
     data: HashMap<String, KVStoreValue>,
     expiries: HashMap<String, Instant>,
+    transactions: HashMap<SocketAddr, Transaction>,
+    current_client: Option<SocketAddr>,
 }
 
 impl KVStore {
@@ -52,6 +55,8 @@ impl KVStore {
             cancellation_token,
             data: HashMap::new(),
             expiries: HashMap::new(),
+            transactions: HashMap::new(),
+            current_client: None,
         }
     }
 
@@ -73,17 +78,11 @@ impl KVStore {
 
     fn handle_request(&mut self, mut req: network::Request) {
         log::debug!("[kvstore] handling request data {:?}", req.argv);
+        self.current_client = Some(req.connection);
         let argv = std::mem::take(&mut req.argv);
-        let command: Command = match argv.try_into() {
-            Ok(cmd) => cmd,
-            Err(err) => {
-                req.send_reply(err.into());
-                return;
-            }
-        };
-
-        let reply = self.handle_command(command);
+        let reply = self.process_command(argv);
         log::debug!("[kvstore] sending reply: {:?}", reply);
         req.send_reply(reply);
+        self.current_client = None;
     }
 }

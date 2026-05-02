@@ -71,7 +71,7 @@ impl Connection {
                         break;
                     }
                     let line = String::from_utf8_lossy(&self.linebuf).to_string();
-                    log::debug!("[connection {}] received {} bytes: {}", self.addr, bytes_read, line.replace("\r\n",
+                    log::trace!("[connection {}] received {} bytes: {}", self.addr, bytes_read, line.replace("\r\n",
                     "\\r\\n"));
                     self.process_line(line).await?;
                     self.linebuf.clear();

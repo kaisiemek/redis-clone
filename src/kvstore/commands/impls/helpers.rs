@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use crate::kvstore::{KVStore, KVStoreValue};
+use crate::kvstore::{KVStore, KVStoreValue, transaction::Transaction};
 
 impl KVStore {
     pub(in crate::kvstore::commands) fn contains(&mut self, key: &str) -> bool {
@@ -98,5 +98,14 @@ impl KVStore {
         // if the index is still negative clamp to 0
         // if the index is larger than the collection, clamp to max size
         index.clamp(0, len as i64) as usize
+    }
+
+    pub(in crate::kvstore::commands) fn get_current_transaction(
+        &mut self,
+    ) -> Option<&mut Transaction> {
+        let Some(client) = self.current_client else {
+            return None;
+        };
+        self.transactions.get_mut(&client)
     }
 }

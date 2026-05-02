@@ -17,19 +17,14 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
         .ok_or(anyhow!("ERR received an empty command"))?;
 
     let command = match cmd.as_str() {
-        "shutdown" => Command::Shutdown,
-        "ping" => Command::Ping {
-            message: iter.next(),
-        },
+        // server commands
         "echo" => Command::Echo {
             message: ensure_next_arg(&mut iter, &cmd)?,
         },
-        "ttl" => Command::Ttl {
-            key: ensure_next_arg(&mut iter, &cmd)?,
+        "ping" => Command::Ping {
+            message: iter.next(),
         },
-        "pttl" => Command::Pttl {
-            key: ensure_next_arg(&mut iter, &cmd)?,
-        },
+        "shutdown" => Command::Shutdown,
         // generic commands
         "del" => Command::Del {
             keys: ensure_arg_list(&mut iter, &cmd)?,
@@ -40,6 +35,12 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
         "expire" => Command::Expire {
             key: ensure_next_arg(&mut iter, &cmd)?,
             ttl: ensure_integer_arg(&mut iter, &cmd)?,
+        },
+        "ttl" => Command::Ttl {
+            key: ensure_next_arg(&mut iter, &cmd)?,
+        },
+        "pttl" => Command::Pttl {
+            key: ensure_next_arg(&mut iter, &cmd)?,
         },
         // string commands
         "decr" => Command::Decr {
@@ -129,6 +130,9 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
             key: ensure_next_arg(&mut iter, &cmd)?,
             values: ensure_arg_list(&mut iter, &cmd)?,
         },
+        // transaction commands
+        "exec" => Command::Exec,
+        "multi" => Command::Multi,
         _ => bail!("ERR unknown command '{}'", cmd),
     };
 
