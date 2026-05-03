@@ -1,4 +1,4 @@
-# Redis Clone ![Static Badge](https://img.shields.io/badge/Rust-1.95.0-orange) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![CI](https://img.shields.io/github/actions/workflow/status/kaisiemek/redis-clone/rust)](https://github.com/kaisiemek/redis-clone/actions)
+# Redis Clone ![Static Badge](https://img.shields.io/badge/Rust-1.95.0-orange) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![GitHub branch check runs](https://img.shields.io/github/check-runs/kaisiemek/redis-clone/main)](https://github.com/kaisiemek/redis-clone/actions)
 
 A simple educational project to learn the inner workings of Redis and brush up on my Rust skills.
 
