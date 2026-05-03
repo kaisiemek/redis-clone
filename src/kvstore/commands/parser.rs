@@ -16,7 +16,7 @@ pub fn parse_command(argv: Vec<String>) -> Result<Command> {
         .next()
         .ok_or(anyhow!("ERR received an empty command"))?;
 
-    let command = match cmd.as_str() {
+    let command = match cmd.to_ascii_lowercase().as_str() {
         // server commands
         "dbsize" => Command::Dbsize,
         "echo" => Command::Echo {
