@@ -35,7 +35,7 @@ impl Server {
     pub async fn run(self: Arc<Self>) -> Result<()> {
         let listener = TcpListener::bind(DEFAULT_SERVER_SOCKET).await?;
         log::info!(
-            "server started listening on port {}",
+            "[server] started listening on port {}",
             listener.local_addr()?
         );
         loop {
@@ -50,11 +50,11 @@ impl Server {
             }
         }
         if self.active_connections.load(Ordering::SeqCst) == 0 {
-            log::info!("server shutting down, no clients connected");
+            log::info!("[server] shutting down, no clients connected");
             return Ok(());
         }
 
-        log::info!("server shutting down, waiting for connections to close");
+        log::info!("[server] shutting down, waiting for connections to close");
         timeout(
             Duration::from_millis(500),
             self.wait_for_connections_to_close(),

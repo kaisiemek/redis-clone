@@ -111,7 +111,7 @@ impl Connection {
             argv
         );
         // special case quit command: close the connection
-        if let Some(command) = argv.get(0)
+        if let Some(command) = argv.first()
             && (command == "QUIT" || command == "quit")
         {
             self.connected = false;

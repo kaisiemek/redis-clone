@@ -81,7 +81,7 @@ impl KVStore {
             return -2;
         }
 
-        return ttl;
+        ttl
     }
 
     pub(in crate::kvstore::commands) fn set_ttl(&mut self, key: String, ttl: i64) -> bool {
@@ -105,7 +105,7 @@ impl KVStore {
         // redis uses inclusive end indeces
         // i.e. redis: getrange "0123" 0 0 -> "0", rust: "0123"[0..1] -> "0"
         let mut end_index = Self::fix_index(len, end);
-        end_index = (end_index + 1).clamp(0, len as usize);
+        end_index = (end_index + 1).clamp(0, len);
 
         if end_index < start_index {
             (0, 0)
@@ -128,9 +128,7 @@ impl KVStore {
     pub(in crate::kvstore::commands) fn get_current_transaction(
         &mut self,
     ) -> Option<&mut Transaction> {
-        let Some(client) = self.current_client else {
-            return None;
-        };
+        let client = self.current_client?;
         self.transactions.get_mut(&client)
     }
 

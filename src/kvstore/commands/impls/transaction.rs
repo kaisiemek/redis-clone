@@ -13,7 +13,7 @@ impl KVStore {
         };
         match self.transactions.remove(&current_client) {
             Some(transaction) => transaction.execute(self),
-            None => return anyhow!("ERR EXEC without MULTI").into(),
+            None => anyhow!("ERR EXEC without MULTI").into(),
         }
     }
 
@@ -29,4 +29,3 @@ impl KVStore {
         RespData::ok()
     }
 }
-

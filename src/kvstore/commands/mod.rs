@@ -139,10 +139,7 @@ pub enum Command {
 
 impl Command {
     pub fn is_queueable(&self) -> bool {
-        match self {
-            Self::Multi | Self::Exec => false,
-            _ => true,
-        }
+        matches!(self, Self::Multi | Self::Exec)
     }
 }
 

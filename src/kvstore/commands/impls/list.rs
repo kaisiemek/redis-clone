@@ -31,8 +31,8 @@ impl KVStore {
     pub(in crate::kvstore::commands) fn llen(&mut self, key: String) -> RespData {
         match self.get_list(&key) {
             Ok(Some(list)) => (list.len() as i64).into(),
-            Ok(None) => return 0.into(),
-            Err(err) => return err.into(),
+            Ok(None) => 0.into(),
+            Err(err) => err.into(),
         }
     }
 
@@ -206,7 +206,7 @@ impl KVStore {
         match self.get_list(&key) {
             Ok(Some(list)) => {
                 if pushright {
-                    list.extend(values.into_iter());
+                    list.extend(values);
                 } else {
                     for val in values {
                         list.push_front(val);
@@ -219,14 +219,14 @@ impl KVStore {
                 self.insert(
                     key,
                     KVStoreValue::List(if pushright {
-                        VecDeque::from_iter(values.into_iter())
+                        VecDeque::from_iter(values)
                     } else {
                         VecDeque::from_iter(values.into_iter().rev())
                     }),
                 );
                 (len as i64).into()
             }
-            Err(err) => return err.into(),
+            Err(err) => err.into(),
         }
     }
 
@@ -333,7 +333,7 @@ mod test {
         expect_range(&mut kvstore, "l", 50, 100, vec![]);
         expect_range(&mut kvstore, "l1", 0, -1, vec![]);
 
-        let expected = vec!["d", "c", "b", "a"];
+        let expected = ["d", "c", "b", "a"];
         for (i, e) in expected.iter().enumerate() {
             expect_index(&mut kvstore, "l", i as i64, e);
         }
